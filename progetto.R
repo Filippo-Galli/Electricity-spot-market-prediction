@@ -50,6 +50,9 @@ correct_tipo <- c('OFF')
 df <- df[!df$Tipo != correct_tipo, ]
 table(df$Tipo)
 
+# Clean all NA's rows (garbage of xml -> dataframe transformation)
+df <- na.omit(df) 
+
 # dropping column with only one value
 df <- subset(df, select = -c(Tipo, ZonaMercato, Mercato, element))
 
@@ -75,7 +78,5 @@ df <- df %>%
 
 df <- df %>%
  mutate(PrezzoZonale = as.numeric(PrezzoZonale))
-
-
 
 summary(df)
