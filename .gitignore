@@ -1,0 +1,6 @@
+#ignore data folder
+
+data/
+
+#ignore .lintr
+.lintr
