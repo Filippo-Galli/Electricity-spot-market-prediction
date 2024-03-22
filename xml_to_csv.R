@@ -1,5 +1,8 @@
 rm(list = ls())
 
+# Choose if you want all files in data
+all_files <- FALSE
+# Set Date range to convert
 initial_date <- as.Date("2024-03-01")
 final_date <- as.Date("2024-03-02")
 
@@ -25,25 +28,28 @@ registerDoParallel(cores=numCores)
 file_path <- list()
 file_list <- c()
 
-# List ALL XML files in the directory
-file_list <- list.files(path = "data", pattern = "\\.xml$", full.names = TRUE)
+if(all_files){
+  # List ALL XML files in the directory
+  file_list <- list.files(path = "data", pattern = "\\.xml$", full.names = TRUE)
+} else {
+  # Setting variables of file_name
+  market <- 'MGP'
+  dataset <- 'DomandaOfferta'
+  date_range <- seq(initial_date, final_date, by = "day")
   
-# Setting variables of file_name
-market <- 'MGP'
-dataset <- 'DomandaOfferta'
-date_range <- seq(initial_date, final_date, by = "day")
-
-# Select ONLY files in data_range
-for (i in seq_along(date_range)) {
-  date_str <- format(date_range[i],"%Y%m%d")
-  file_path <- file.path("data", paste0(date_str, market, dataset, ".xml"))
-  
+  # Select ONLY files in data_range
+  for (i in seq_along(date_range)) {
+    date_str <- format(date_range[i],"%Y%m%d")
+    file_path <- file.path("data", paste0(date_str, market, dataset, ".xml"))
+    
     if (file.exists(file_path)) {
       file_list <- c(file_list,file_path)
     } else {
       cat(paste(file_path, "not found\n"))
     }
   }
+}
+
 
 # Initialize an empty list to store dataframes
 all_dataframes <- list()
