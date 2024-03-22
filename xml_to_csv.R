@@ -4,7 +4,7 @@ rm(list = ls())
 all_files <- FALSE
 # Set Date range to convert
 initial_date <- as.Date("2024-03-01")
-final_date <- as.Date("2024-03-02")
+final_date <- as.Date("2024-03-21")
 
 ############################ Library #############################
 
