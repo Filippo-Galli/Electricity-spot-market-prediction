@@ -22,8 +22,29 @@ print("Reading XML files...")
 numCores <- detectCores() - 1 # Leave one core free
 registerDoParallel(cores=numCores)
 
-# List all XML files in the directory
+# Initialize list
+file_path <- list()
+file_list <- c()
+
+# List ALL XML files in the directory
 file_list <- list.files(path = "data", pattern = "\\.xml$", full.names = TRUE)
+  
+# Setting variables of file_name
+market <- 'MGP'
+dataset <- 'DomandaOfferta'
+date_range <- seq(as.Date("2023-11-01"), as.Date("2023-11-10"), by = "day")
+
+# Select ONLY files in data_range
+for (i in seq_along(date_range)) {
+  date_str <- format(date_range[i],"%Y%m%d")
+  file_path <- file.path("data", paste0(date_str, market, dataset, ".xml"))
+  
+    if (file.exists(file_path)) {
+      file_list <- c(file_list,file_path)
+    } else {
+      cat(paste(file_path, "not found\n"))
+    }
+  }
 
 # Initialize an empty list to store dataframes
 all_dataframes <- list()
@@ -52,7 +73,7 @@ df <- bind_rows(dataframes_list)
 # Print or access the results as needed
 head(df)
 
-# useless variables cleaning
+# useless R variables cleaning
 rm(all_dataframes, file_list, dataframes_list, named_dataframes, res, numCores)
 
 ######################### Data Cleaning #############################
@@ -104,6 +125,11 @@ summary(df)
 # Clean all NA's rows (garbage of xml -> dataframe transformation)
 df <- na.omit(df) 
 
+######################### current DF to .CSV #############################
+# naming with selected data range
+file_name_csv <- paste0(date_range[1],"_to_",date_range[length(date_range)],".csv")
+write.csv(df, file_name_csv , row.names = FALSE)
+
 ######################### Data Processing #############################
 
 ########################## Prezzo-Ora's Boxplot #############################
@@ -135,3 +161,4 @@ ggplot(df_boxplot, aes(x = Ora, y = Prezzo, fill = color_value)) +
   ylim(0, 250) +
   scale_fill_gradient(low = "green", high = "red", limits = c(min(medians$color_value), max(medians$color_value))) + # Green to red gradient
   theme_minimal()
+

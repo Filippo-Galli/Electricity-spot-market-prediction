@@ -4,3 +4,9 @@ data/
 
 #ignore .lintr
 .lintr
+
+#ignore producible data
+
+.Rhistory
+.RData
+.csv
