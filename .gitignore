@@ -1,12 +1,14 @@
-#ignore data folder
-
+#ignore data folder and every .xml
+*.xml
 data/
 
 #ignore .lintr
 .lintr
 
 #ignore producible data
-
 .Rhistory
 .RData
+
+# Ignore csv folder and every .csv
 *.csv
+csv/
