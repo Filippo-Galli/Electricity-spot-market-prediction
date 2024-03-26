@@ -12,3 +12,6 @@ data/
 # Ignore csv folder and every .csv
 *.csv
 csv/
+
+# Ignore images
+img/

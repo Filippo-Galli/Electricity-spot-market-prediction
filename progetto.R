@@ -9,7 +9,7 @@ library(tidyverse)
 ######################### Data Processing #############################
 
 # Load the data from .csv file
-df <- read.csv("csv/2024-03-01_to_2024-03-21.csv")
+df <- read.csv("csv/2023-01-01_to_2023-12-31.csv")
 
 ########################## Prezzo-Ora's Boxplot #############################
 
@@ -29,6 +29,9 @@ medians$color_value <- (medians$color_value - min(medians$color_value)) /
 # Join the median values back to the original data frame
 df_boxplot <- df %>%
   left_join(medians, by = "Ora")
+
+# If you want a single month selected
+df_boxplot <- df_boxplot[month(df$Data) == 7,]
 
 # Create the boxplot with enhanced color differentiation
 ggplot(df_boxplot, aes(x = Ora, y = Prezzo, fill = color_value)) + 
@@ -166,3 +169,9 @@ ggplot(df_prezzoZonale, aes(x = Ora, y = PrezzoZonale, fill = Ora)) +
 
 # Cleaning variables
 rm(means_vector_hour, means_vector_month, sd_hour, sd_month, df_prezzoZonale, tot_mean, tot_sigma)
+
+########################## Matplot months #############################
+
+par(mfrow=c(1,1))
+
+  

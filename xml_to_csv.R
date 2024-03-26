@@ -3,8 +3,8 @@ rm(list = ls())
 # Choose if you want all files in data
 all_files <- FALSE
 # Set Date range to convert
-initial_date <- as.Date("2024-03-01")
-final_date <- as.Date("2024-03-21")
+initial_date <- as.Date("2023-01-01")
+final_date <- as.Date("2023-12-31")
 
 ############################ Library #############################
 
@@ -121,7 +121,6 @@ df <- df %>%
  mutate(Ora = as.factor(Ora))
 
 # Convert the 'PrezzoZonale' column from character to numeric
-
 df <- df %>%
  mutate(PrezzoZonale = as.numeric(PrezzoZonale))
 
