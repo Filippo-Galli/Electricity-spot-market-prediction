@@ -11,6 +11,8 @@ library(tidyverse)
 # Load the data from .csv file
 df <- read.csv("csv/2023-01-01_to_2023-12-31.csv")
 
+###ALE
+
 ########################## Prezzo-Ora's Boxplot #############################
 
 # Ordering Ora's value
