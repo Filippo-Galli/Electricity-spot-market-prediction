@@ -172,8 +172,28 @@ ggplot(df_prezzoZonale, aes(x = Ora, y = PrezzoZonale, fill = Ora)) +
 # Cleaning variables
 rm(means_vector_hour, means_vector_month, sd_hour, sd_month, df_prezzoZonale, tot_mean, tot_sigma)
 
-########################## Matplot months #############################
+########################## Curve of prezzo by hour #############################
 
-par(mfrow=c(1,1))
+day <- c("2023-01-02")
+hours <- c("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24")
 
-  
+# dataframe to modify
+df_plot <- df[df$Data %in% day & df$Ora %in% hours,]
+
+# Add a new column 'ObservationNumber' that represents the observation number for each 'Ora'
+df_plot <- df_plot %>%
+ group_by(Ora) %>%
+ mutate(ObservationNumber = row_number())
+
+# Convert ObservationNumber to numeric if it's not already
+df_plot$ObservationNumber <- as.numeric(df_plot$ObservationNumber)
+
+# Convert 'Ora' to a factor
+df_plot$Ora <- factor(df_plot$Ora)
+
+ggplot(df_plot, aes(x=ObservationNumber, y=Prezzo, color=Ora, group=Ora)) +
+ geom_line() +
+ geom_point() +
+ labs(x="Observation Number", y="Prezzo", title=day, color="Hour") +
+ theme_minimal() +
+ scale_color_discrete(name = "Hour")
