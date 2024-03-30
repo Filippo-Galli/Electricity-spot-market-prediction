@@ -76,7 +76,7 @@ ggplot(df_boxplot,aes(x = day, y = Prezzo)) +
               position = position_nudge(x = -0.2), size = 5, vjust = -0.8)
 
 # cleaning variables
-rm(dataMedian, df_boxplot, medians)
+rm(dataMedian, df_boxplot)
 
 ########################## Prezzo Zonale-Ora's Boxplot #############################
 
