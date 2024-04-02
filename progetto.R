@@ -5,6 +5,7 @@ rm(list = ls())
 library(dplyr)
 library(ggplot2)
 library(tidyverse)
+library (fda)
 
 ######################### Data Processing #############################
 
@@ -176,4 +177,3 @@ rm(means_vector_hour, means_vector_month, sd_hour, sd_month, df_prezzoZonale, to
 
 par(mfrow=c(1,1))
 
-  

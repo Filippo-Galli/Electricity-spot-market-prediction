@@ -4,10 +4,10 @@ rm(list = ls())
 all_files <- FALSE
 # Set Date range to convert
 initial_date <- as.Date("2023-01-01")
-final_date <- as.Date("2023-12-31")
+final_date <- as.Date("2022-06-01")
 
 ############################ Library #############################
-
+ 
 library(parallel)
 library(iterators)
 library(foreach)
