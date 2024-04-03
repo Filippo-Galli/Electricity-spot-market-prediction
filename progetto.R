@@ -12,12 +12,12 @@ library (fda)
 # Load the data from .csv file
 df <- read.csv("csv/2023-01-01_to_2023-12-31.csv")
 
-###ALE
-
-########################## Prezzo-Ora's Boxplot #############################
-
 # Ordering Ora's value
 df$Ora <- factor(df$Ora, levels = c("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24"))
+df$Data <- as.Date(df$Data)
+df$ZonaMercato <- factor(df$ZonaMercato)
+
+########################## Prezzo-Ora's Boxplot #############################
 
 # Calculate median values of Prezzo for each Ora
 medians <- df %>%
@@ -77,7 +77,7 @@ ggplot(df_boxplot,aes(x = day, y = Prezzo)) +
               position = position_nudge(x = -0.2), size = 5, vjust = -0.8)
 
 # cleaning variables
-rm(dataMedian, df_boxplot, medians)
+rm(dataMedian, df_boxplot)
 
 ########################## Prezzo Zonale-Ora's Boxplot #############################
 
@@ -173,7 +173,8 @@ ggplot(df_prezzoZonale, aes(x = Ora, y = PrezzoZonale, fill = Ora)) +
 # Cleaning variables
 rm(means_vector_hour, means_vector_month, sd_hour, sd_month, df_prezzoZonale, tot_mean, tot_sigma)
 
-########################## Matplot months #############################
+########################## Curve of prezzo by hour #############################
 
-par(mfrow=c(1,1))
+day <- c("2023-01-02")
+hours <- c("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24")
 

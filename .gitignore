@@ -1,3 +1,8 @@
+# ignore csv files
+csv/
+*.csv
+
+
 #ignore data folder and every .xml
 *.xml
 data/
@@ -8,10 +13,6 @@ data/
 #ignore producible data
 .Rhistory
 .RData
-
-# Ignore csv folder and every .csv
-*.csv
-csv/
 
 # Ignore images
 img/
