@@ -5,19 +5,100 @@ rm(list = ls())
 library(dplyr)
 library(ggplot2)
 library(tidyverse)
-library (fda)
+library(fda)
 
 ######################### Data Processing #############################
 
 # Load the data from .csv file
 df <- read.csv("csv/2023-01-01_to_2023-12-31.csv")
 
+df$Ora <- factor(df$Ora, levels = c("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24"))
+df$Data <- as.Date(df$Data)
+df$ZonaMercato <- factor(df$ZonaMercato)
 
+######################### Smoothing - Prezzo #############################
 
-############################ Smoothing  #################################
+day <- c("2023-01-02")
+hours <- c("1")
+zona_mercato <- c("CALA;CNOR;CSUD;NORD;SARD;SICI;SUD;AUST;COAC;CORS;FRAN;GREC;SLOV;SVIZ;MALT;COUP;MONT;")
+
+# dataframe to modify
+df_plot <- df[df$Data %in% day & df$Ora %in% hours, ]
+
+x <- seq_along(df_plot$Prezzo)
+
+########################## loess approch #############################
+
+# Create a smooth line for the Prezzo values
+fit <- loess(df_plot$Prezzo ~ x)
+
+t <- paste("Loess: ", day, " H:", hours)
+
+plot(x, df_plot$Prezzo, lwd = 2, col = "red", xlab = "Observation Number", ylab = "Prezzo", main = t)
+
+xl <- seq(min(x), max(x), length.out = 1000)
+yl <- predict(fit, newdata = data.frame(x = xl))
+lines(xl, yl, col = "blue", lwd = 2)
+
+########################## bezierCurve approch #############################
+
+# Bezier curve - 
+bezier_curve <- function(x, y, n = 10) {
+  outx <- NULL
+  outy <- NULL
+
+  i <- 1
+  for (t in seq(0, 1, length.out = n)) {
+    b <- bez(x, y, t)
+    outx[i] <- b$x
+    outy[i] <- b$y
+    i <- i + 1
+  }
+
+  return(list(x = outx, y = outy))
+}
+
+bez <- function(x, y, t) {
+  outx <- 0
+  outy <- 0
+  n <- length(x) - 1
+  for (i in 0:n) {
+    outx <- outx + choose(n, i) * ((1 - t)^(n - i)) * t^i * x[i + 1]
+    outy <- outy + choose(n, i) * ((1 - t)^(n - i)) * t^i * y[i + 1]
+  }
+
+  return(list(x = outx, y = outy))
+}
+
+t <- paste("Bezier: ", day, " H:", hours)
+
+plot(x, df_plot$Prezzo, lwd = 2, col = "red", xlab = "Observation Number", ylab = "Prezzo", main = t)
+smoothed_curve <- bezier_curve(x, df_plot$Prezzo, 50)
+points(smoothed_curve$x, smoothed_curve$y, type = "l", col = "blue")
+
+########################## Spline approch #############################
+
+knots <- c(seq(0, length(x), 5)) #Location of knots
+n_knots <- length(knots) #Number of knots
+n_order <- 4 # order of basis functions: for cubic b-splines: order = 3 + 1
+n_basis <- length(knots) + n_order - 2;
+basis <- create.bspline.basis(rangeval = c(0, length(x)), n_basis)
+plot(basis)
+
+# compute the fitted values
+result <- smooth.basis(x, df_plot$Prezzo, basis)
+prezzo_hat <- eval.fd(x, result$fd, Lfd = 0)
+
+# plot the curve
+t <- paste("Spline: ", day, " H:", hours)
+plot(x, df_plot$Prezzo, lwd = 2, col = "red", xlab = "Observation Number", ylab = "Prezzo", main = t)
+points(x, prezzo_hat, type = "l", col = "blue")
+
+rm(df_plot, prezzo_hat, result, basis, n_order, n_basis, n_knots, knots, t, x)
+
+######################### Smoothing - Prezzo Zonale #################################
 
 # Molto lento. Oltre al parallelo, altre soluzioni?
-
 df_smoothing <- df
 df_smoothing <- subset(df_smoothing, select = -c(Quantita, Prezzo))
 
@@ -25,19 +106,19 @@ df_smoothing <- subset(df_smoothing, select = -c(Quantita, Prezzo))
 df_smoothing <- df_smoothing[!duplicated(df_smoothing[, c("Data", "Ora")]), ]
 
 # Omit rows with missing values
-df_smoothing<-na.omit(df_smoothing)
+df_smoothing <- na.omit(df_smoothing)
 
 # Save Date and Hour in a unique column with appropriate format for algebric computations
 df_smoothing$DateTime <- paste(df_smoothing$Data, df_smoothing$Ora, sep=" ")
 df_smoothing <- subset(df_smoothing, select = -c(Data, Ora))
-df_smoothing$DateTime <-as.numeric(as.POSIXct(df_smoothing$DateTime, format = "%Y-%m-%d %H", tz="CET"))
+df_smoothing$DateTime <- as.numeric(as.POSIXct(df_smoothing$DateTime, format = "%Y-%m-%d %H", tz = "CET"))
 
 # Omit rows with missing values
-df_smoothing<-na.omit(df_smoothing)
+df_smoothing <- na.omit(df_smoothing)
 
 # Save abscissa and target variable
-x=df_smoothing$DateTime
-Y=df_smoothing$PrezzoZonale
+x <- df_smoothing$DateTime
+Y <- df_smoothing$PrezzoZonale
 
 # Order the abscissa to avoid problems with plotting
 ordered_indices <- order(x)
@@ -46,28 +127,30 @@ Y <- Y[ordered_indices]
 
 
 # Frequencies
-table(x) 
+table(x)
 
 # Looking at the dataframe we should have equidistant time steps, so it makes sense
 # to consider equispaced knots
 
 
-# Compute the numerical derivatives
-n=length(x)
-rappincX1 <- (Y[3:n]-Y[1:(n-2)])/(x[3:n]-x[1:(n-2)])
-rappincX2 <- ((Y[3:n]-Y[2:(n-1)])/(x[3:n]-x[2:(n-1)])-(Y[2:(n-1)]-Y[1:(n-2)])/(x[2:(n-1)]-x[1:(n-2)]))*2/(x[3:(n)]-x[1:(n-2)])
+# Compute numerical derivatives with central differences
+n = length(x)
+rappincX1 <- (Y[3:n] - Y[1:(n - 2)]) / (x[3:n] - x[1:(n - 2)])
+rappincX2 <- ((Y[3:n] - Y[2:(n - 1)]) / (x[3:n] - x[2:(n - 1)]) - (Y[2:(n - 1)] - Y[1:(n - 2)]) / (x[2 : (n - 1)] - x[1:(n - 2)])) * 2 / (x[3 : (n)] - x[1 : (n - 2)])
 
 ##### First approach: dimensionality reduction ----
 
 # Parameters
-n_points=n
-basisOrder=4
+n_points <- n
+basisOrder <- 4
 
 
 # Choose the best value of numbasis by minimizing the GeneralizedCrossValidation
 numbasis <- seq(from = 2000, to = n_points/2, by = 1000) # troppe basi rendono la matrice psi singolare. Se da problemi 
                                                          # diminuire estremo dx
+
 GeneralizedCrossValidations <- numeric(length(numbasis))
+
 for (i in 1:length(numbasis)){
   basis <- create.bspline.basis(rangeval=c(min(x),max(x)), nbasis=numbasis[i], norder=basisOrder)
   GeneralizedCrossValidations[i] <- smooth.basis(x, Y, basis)$gcv
