@@ -6,6 +6,7 @@ library(dplyr)
 library(ggplot2)
 library(tidyverse)
 library (fda)
+library(tidyr)
 
 ######################### Data Processing #############################
 
@@ -17,7 +18,79 @@ df$Ora <- factor(df$Ora, levels = c("1", "2", "3", "4", "5", "6", "7", "8", "9",
 df$Data <- as.Date(df$Data)
 df$ZonaMercato <- factor(df$ZonaMercato)
 
-########################## Prezzo-Ora's Boxplot #############################
+########################## All zones #################################
+
+ggplot(df, aes(x = ZonaMercato)) +
+  geom_bar(fill = "skyblue", color = "black") +
+  labs(title = "ZonaMercato", x = "Zones", y = "Count")
+
+#####################################################################
+
+specific_zone <- "CALA;CNOR;CSUD;NORD;SARD;SICI;SUD;AUST;COAC;CORS;FRAN;GREC;SLOV;SVIZ;MALT;COUP;MONT;"
+result <- df %>%
+  filter(ZonaMercato == specific_zone) %>%
+  group_by(Data, Ora, ZonaMercato) %>%
+  summarize(num_nulls = sum(is.na(Prezzo)))
+
+resultNoFilter <- df %>%
+  group_by(Data, Ora) %>%
+  summarize(isZoneTot = sum(ZonaMercato == specific_zone))
+
+noTotZone <- resultNoFilter %>% filter (isZoneTot == 0)
+
+your_data <- noTotZone %>% count( Data , name = "Missing Hour")
+
+# Convert the 'Data' column to Date type
+your_data$Data <- as.Date(your_data$Data)
+
+# Extract the month from the 'Data' column
+your_data$Month <- format(your_data$Data, "%m")
+
+# Define colors for each month
+month_colors <- c(
+  "01" = "red",
+  "02" = "blue",
+  "03" = "green",
+  "04" = "orange",
+  "05" = "purple",
+  "06" = "cyan",
+  "07" = "magenta",
+  "08" = "yellow",
+  "09" = "gray",
+  "10" = "darkgreen",
+  "11" = "darkblue",
+  "12" = "darkred"
+)
+
+# Plot the barplot with legend
+ggplot(your_data, aes(x = Data, y = `Missing Hour`, fill = Month)) +
+  geom_bar(stat = "identity") +
+  labs(x = "Date", y = "Missing Hour", title = "Missing Hour per Date",
+       fill = "Month") +
+  scale_fill_manual(values = month_colors, 
+                    labels = c("January", "February", "March", "April", "May", "June",
+                               "July", "August", "September", "October", "November", "December")) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+# with nomralization
+
+# Normalize the 'Missing Hour' values
+your_data$Normalized_Missing_Hour <- your_data$`Missing Hour` / 24
+
+# Plot the barplot
+ggplot(your_data, aes(x = Data, y = Normalized_Missing_Hour, fill = Month)) +
+  geom_bar(stat = "identity") +
+  labs(x = "Date", y = "Normalized Missing Hour", title = "Normalized Missing Hour per Date",
+       fill = "Month") +
+  scale_fill_manual(values = month_colors, 
+                    labels = c("January", "February", "March", "April", "May", "June",
+                               "July", "August", "September", "October", "November", "December")) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+# with all dates
+
+
+T########################## Prezzo-Ora's Boxplot #############################
 
 # Calculate median values of Prezzo for each Ora
 medians <- df %>%
