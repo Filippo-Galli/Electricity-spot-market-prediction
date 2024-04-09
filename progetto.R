@@ -98,10 +98,6 @@ medians <- df %>%
   summarise(median_Prezzo = median(Prezzo)) %>%
   mutate(color_value = rank(median_Prezzo, ties.method = "first")) # Rank based on median
 
-# Normalize the color_value to range from 0 to 1
-medians$color_value <- (medians$color_value - min(medians$color_value)) / 
-                       (max(medians$color_value) - min(medians$color_value))
-
 # Join the median values back to the original data frame
 df_boxplot <- df %>%
   left_join(medians, by = "Ora")
@@ -109,15 +105,19 @@ df_boxplot <- df %>%
 # If you want a single month selected
 df_boxplot <- df_boxplot[month(df$Data) == 7,]
 
+
 # Create the boxplot with enhanced color differentiation
 ggplot(df_boxplot, aes(x = Ora, y = Prezzo, fill = color_value)) + 
   geom_boxplot() + 
-  geom_text(data = medians, aes(x = Ora, y = median_Prezzo, label = round(median_Prezzo, 2)), 
-            size = 3, vjust = -1.5) +
+  #geom_text(data = medians, aes(x = Ora, y = median_Prezzo, label = round(median_Prezzo, 2)), 
+  #         size = 3, vjust = -1.5) +
   ggtitle("Boxplot of Prezzo by Ora") + 
   labs(x = "Ora", y = "Prezzo") +
   ylim(0, 250) +
-  scale_fill_gradient(low = "green", high = "red", limits = c(min(medians$color_value), max(medians$color_value))) + # Green to red gradient
+  scale_fill_gradient(low = "green", high = "red", limits = c(min(medians$color_value), max(medians$color_value)),
+                      breaks = c(min(medians$color_value), max(medians$color_value)),
+                      labels = c(min(medians$median_Prezzo), max(medians$median_Prezzo)),
+                      guide = guide_colorbar(title = "median_Prezzo")) + # Modifica il titolo della legenda# Green to red gradient
   theme_minimal()
 
 # Cleaning variables
