@@ -25,22 +25,26 @@ zona_mercato <- c("CALA;CNOR;CSUD;NORD;SARD;SICI;SUD;AUST;COAC;CORS;FRAN;GREC;SL
 # dataframe to modify
 df_plot <- df[df$Data %in% day & df$Ora %in% hours, ]
 
-x <- seq_along(df_plot$Prezzo)
+df_plot$cum_sum_quantita <- cumsum(df_plot$Quantita)
+df_plot$cum_sum_quantita <- as.numeric(df_plot$cum_sum_quantita)
 
 ########################## loess approch #############################
 
+df_plot <- subset(df_plot, cum_sum_quantita >= 75000 & cum_sum_quantita <= 100000)
+
 # Create a smooth line for the Prezzo values
-fit <- loess(df_plot$Prezzo ~ x)
+fit <- loess(df_plot$Prezzo ~ df_plot$cum_sum_quantita)
 
 t <- paste("Loess: ", day, " H:", hours)
 
-plot(x, df_plot$Prezzo, lwd = 2, col = "red", xlab = "Observation Number", ylab = "Prezzo", main = t)
+plot(df_plot$cum_sum_quantita, df_plot$Prezzo, lwd = 2, col = "red", xlab = "Observation Number", ylab = "Prezzo", main = t)
+lines(df_plot$cum_sum_quantita, df_plot$Prezzo, lwd = 2, col = "green")
+lines(df_plot$cum_sum_quantita, df_plot$PrezzoZonale)
 
-xl <- seq(min(x), max(x), length.out = 1000)
-yl <- predict(fit, newdata = data.frame(x = xl))
-lines(xl, yl, col = "blue", lwd = 2)
+yl <- predict(fit, newdata = data.frame(x = df_plot$cum_sum_quantita))
+lines(df_plot$cum_sum_quantita, yl, col = "blue", lwd = 2)
 
-########################## bezierCurve approch #############################
+########################## bezier Curve approch #############################
 
 # Bezier curve - 
 bezier_curve <- function(x, y, n = 10) {
@@ -72,27 +76,30 @@ bez <- function(x, y, t) {
 
 t <- paste("Bezier: ", day, " H:", hours)
 
-plot(x, df_plot$Prezzo, lwd = 2, col = "red", xlab = "Observation Number", ylab = "Prezzo", main = t)
-smoothed_curve <- bezier_curve(x, df_plot$Prezzo, 50)
+plot(df_plot$cum_sum_quantita, df_plot$Prezzo, lwd = 2, col = "red", xlab = "Observation Number", ylab = "Prezzo", main = t)
+lines(df_plot$cum_sum_quantita, df_plot$Prezzo, lwd = 2, col = "green")
+lines(df_plot$cum_sum_quantita, df_plot$PrezzoZonale)
+smoothed_curve <- bezier_curve(df_plot$cum_sum_quantita, df_plot$Prezzo, 50)
 points(smoothed_curve$x, smoothed_curve$y, type = "l", col = "blue")
 
 ########################## Spline approch #############################
 
-knots <- c(seq(0, length(x), 5)) #Location of knots
+knots <- c(seq(0, length(df_plot$cum_sum_quantita), 5)) #Location of knots
 n_knots <- length(knots) #Number of knots
 n_order <- 4 # order of basis functions: for cubic b-splines: order = 3 + 1
 n_basis <- length(knots) + n_order - 2;
-basis <- create.bspline.basis(rangeval = c(0, length(x)), n_basis)
-plot(basis)
+basis <- create.bspline.basis(rangeval = c(min(df_plot$cum_sum_quantita), max(df_plot$cum_sum_quantita)), n_basis)
 
 # compute the fitted values
-result <- smooth.basis(x, df_plot$Prezzo, basis)
-prezzo_hat <- eval.fd(x, result$fd, Lfd = 0)
+result <- smooth.basis(df_plot$cum_sum_quantita, df_plot$Prezzo, basis)
+prezzo_hat <- eval.fd(df_plot$cum_sum_quantita, result$fd, Lfd = 0)
 
 # plot the curve
 t <- paste("Spline: ", day, " H:", hours)
 plot(x, df_plot$Prezzo, lwd = 2, col = "red", xlab = "Observation Number", ylab = "Prezzo", main = t)
+lines(df_plot$cum_sum_quantita, df_plot$Prezzo, lwd = 2, col = "green")
 points(x, prezzo_hat, type = "l", col = "blue")
+lines(df_plot$cum_sum_quantita, df_plot$PrezzoZonale)
 
 rm(df_plot, prezzo_hat, result, basis, n_order, n_basis, n_knots, knots, t, x)
 
