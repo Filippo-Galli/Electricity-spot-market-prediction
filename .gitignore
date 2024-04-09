@@ -16,3 +16,7 @@ data/
 
 # Ignore images
 img/
+
+# Ignore fda folder 
+Lab1/fda/
+Slides/fda/
