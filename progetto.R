@@ -249,12 +249,10 @@ rm(means_vector_hour, means_vector_month, sd_hour, sd_month, df_prezzoZonale, to
 
 ########################## Curve of prezzo by hour #############################
 
-# TODO: curve coi dati tratteggiate curve medie delle ore su tot giorni
-
 rm(list = ls())
 
 # Parameters
-desired_hour <- 10
+desired_hours <- c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24)
 day <- c("2023-01-01", "2023-01-02", "2023-01-03", "2023-01-04", "2023-01-05", "2023-01-06", "2023-01-07", "2023-01-08", "2023-01-09", "2023-01-10", "2023-01-11", "2023-01-12", "2023-01-13", "2023-01-14", "2023-01-15", "2023-01-16", "2023-01-17", "2023-01-18", "2023-01-19", "2023-01-20", "2023-01-21", "2023-01-22", "2023-01-23", "2023-01-24", "2023-01-25", "2023-01-26", "2023-01-27", "2023-01-28", "2023-01-29", "2023-01-30", "2023-01-31")
 hours <- c("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24")
 zona_mercato <- c("CALA;CNOR;CSUD;NORD;SARD;SICI;SUD;AUST;COAC;CORS;FRAN;GREC;SLOV;SVIZ;MALT;COUP;MONT;")
@@ -264,6 +262,8 @@ df <- read.csv("csv/2023-01-01_to_2023-12-31.csv")
 
 # Dummy dataframe
 df_curve <- df[df$Data %in% day & df$Ora %in% hours & df$ZonaMercato %in% zona_mercato, ]
+# delete ZonaMercato
+df_curve <- df_curve %>% subset(select = c(Data, Ora, Prezzo, Quantita, PrezzoZonale))
 
 # remove variables useless
 rm(df, day, hours, zona_mercato)
@@ -288,41 +288,78 @@ step_fun_list <- lapply(df_split_by_hour, function(df) {
 })
 
 # Function to find indexes of the desired hour in the list of dataframes
-find_hour_index <- function(hour_name, list_of_dfs) {
- # Find the index of the data frame that matches the desired hour
- index <- which(sapply(names(list_of_dfs), function(name) grepl(hour_name, name)))
- return(index)
+find_hour_index <- function(desired_hour, list_of_dfs) {
+ # Convert desired_hour to a character for pattern matching
+ desired_hour <- as.character(desired_hour)
+  
+ # Initialize an empty vector to store the indices
+ indices <- c()
+  
+ # Loop through the names of the data frames
+ for (i in seq_along(list_of_dfs)) {
+    # Extract the hour from the name using a regular expression
+    # This pattern matches the first sequence of digits before the dot
+    hour <- regmatches(names(list_of_dfs)[i], regexpr("^\\d+", names(list_of_dfs)[i]))
+    
+    # Check if the extracted hour matches the desired hour
+    if (hour == desired_hour) {
+      # If a match is found, add the index to the indices vector
+      indices <- c(indices, i)
+    }
+ }
+  
+ # Return the indices vector
+ return(indices)
 }
 
-# Find the index of the desired hour in the list of data frames
-hour_index <- find_hour_index(desired_hour, df_split_by_hour)
+# Initialize an empty data frame to store the results of mean step functions
+data <- data.frame()
 
-# Check if the hour_index is valid
-if (length(hour_index) == 0) {
- stop("Desired hour not found in the list of data frames.")
+for (desired_hour in desired_hours){
+
+  # Find the index of the desired hour in the list of data frames
+  hour_index <- find_hour_index(desired_hour, df_split_by_hour)
+
+  # Check if the hour_index is valid
+  if (length(hour_index) == 0) {
+    print("Desired hour not found in the list of data frames, hour: ", desired_hour)
+  }
+
+  # Extract the step functions for the desired hour
+  # Assuming the step functions are in the same order as the data frames in df_split_by_hour
+  step_funs_desired_hour <- list()
+  for (i in seq_along(hour_index)) {
+    step_funs_desired_hour <- append(step_funs_desired_hour, step_fun_list[[hour_index[i]]])
+  }
+
+  # Step 2: Find the unique points at which to evaluate the step functions
+  unique_points <- unique(unlist(lapply(df_split_by_hour, function(df) df$cum_sum_quantita_normalized)))
+  unique_points <- sort(unique_points)
+
+  # Step 3: Evaluate the step functions at these points
+  values_desired_hour <- sapply(step_funs_desired_hour, function(step_fun) step_fun(unique_points))
+
+  # Step 4: Calculate the mean of these values
+  mean_values <- rowMeans(values_desired_hour)
+
+  # Step 5: Save mean values in a dummy dataframe
+  temp <- data.frame(unique_points, mean_values)
+  temp$Ora <- desired_hour
+
+  # Step 6: Append the dummy dataframe to the main dataframe
+  data <- rbind(data, temp)
 }
 
-# Extract the step functions for the desired hour
-# Assuming the step functions are in the same order as the data frames in df_split_by_hour
-step_funs_desired_hour <- list()
-for (i in seq_along(hour_index)) {
-  step_funs_desired_hour <- append(step_funs_desired_hour, step_fun_list[[hour_index[i]]])
-}
+# Cleaning variables
+rm(temp, unique_points, mean_values, i, desired_hour, values_desired_hour, step_funs_desired_hour, hour_index)
 
-# Step 2: Find the unique points at which to evaluate the step functions
-unique_points <- unique(unlist(lapply(df_split_by_hour, function(df) df$cum_sum_quantita_normalized)))
-unique_points <- sort(unique_points)
+# Convert the 'Ora' column to a factor with the desired order
+data$Ora <- factor(data$Ora, levels = desired_hours)
 
-# Step 3: Evaluate the step functions at these points
-values_desired_hour <- sapply(step_funs_desired_hour, function(step_fun) step_fun(unique_points))
-
-# Step 4: Calculate the mean of these values
-mean_values <- rowMeans(values_desired_hour)
-
-# Step 5: Plot the mean values
-plot(unique_points, mean_values,
-     type = "l",
-     xlab = "Normalized Cumulative Quantity",
-     ylab = "Mean Prezzo",
-     col = "blue",
-     main = "Mean Prezzo by Normalized Cumulative Quantity")
+# Plot using ggplot2
+ggplot(data, aes(x = unique_points, y = mean_values, color = Ora)) +
+ geom_line() +
+ labs(x = "Normalized Cumulative Quantity",
+       y = "Mean Prezzo",
+       title = "Mean Prezzo by Normalized Cumulative Quantity") +
+ theme_minimal()
