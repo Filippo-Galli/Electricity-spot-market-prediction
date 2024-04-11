@@ -21,40 +21,31 @@ df$ZonaMercato <- factor(df$ZonaMercato)
 
 ########################## All zones #################################
 
-specific_zone <- "CALA;CNOR;CSUD;NORD;SARD;SICI;SUD;AUST;COAC;CORS;FRAN;GREC;SLOV;SVIZ;MALT;COUP;MONT;"
-
-count_zona_mercato <- count(df %>% group_by(ZonaMercato))
-
-ggplot(count_zona_mercato, aes(x = ZonaMercato, y = n, fill=ZonaMercato!=specific_zone)) +
-  geom_bar(stat="identity",color="black") +
-  scale_fill_manual(name="ZonaMercato", values=c("TRUE"="skyblue", "FALSE"="green"), labels=c(specific_zone,"Others")) +
-  theme(axis.text.x = element_blank(), legend.position = "top") +
+ggplot(df, aes(x = ZonaMercato)) +
+  geom_bar(fill = "skyblue", color = "black") +
   labs(title = "ZonaMercato", x = "Zones", y = "Count")
 
-######################## Data loss ################################
+#####################################################################
 
-# null prices of specific_zone per day per hour
-null_prices <- df %>%
+specific_zone <- "CALA;CNOR;CSUD;NORD;SARD;SICI;SUD;AUST;COAC;CORS;FRAN;GREC;SLOV;SVIZ;MALT;COUP;MONT;"
+result <- df %>%
   filter(ZonaMercato == specific_zone) %>%
   group_by(Data, Ora, ZonaMercato) %>%
   summarize(num_nulls = sum(is.na(Prezzo)))
 
-# how many entries of type specific_ per day per hour
-specific_zone_presence <- df %>%
+resultNoFilter <- df %>%
   group_by(Data, Ora) %>%
-  summarize(specific_zone_number = sum(ZonaMercato == specific_zone))
+  summarize(isZoneTot = sum(ZonaMercato == specific_zone))
 
-# select when no specific_zone is present
-no_specific_zone <- specific_zone_presence %>% filter (specific_zone_number == 0)
+noTotZone <- resultNoFilter %>% filter (isZoneTot == 0)
 
-# count missing hour per Date
-missing_hours <- no_specific_zone %>% count( Data , name = "Missing Hour")
+your_data <- noTotZone %>% count( Data , name = "Missing Hour")
 
 # Convert the 'Data' column to Date type
-missing_hours$Data <- as.Date(missing_hours$Data)
+your_data$Data <- as.Date(your_data$Data)
 
 # Extract the month from the 'Data' column
-missing_hours$Month <- format(missing_hours$Data, "%m")
+your_data$Month <- format(your_data$Data, "%m")
 
 # Define colors for each month
 month_colors <- c(
@@ -73,30 +64,45 @@ month_colors <- c(
 )
 
 # Plot the barplot with legend
-ggplot(missing_hours, aes(x = Data, y = `Missing Hour`, fill = Month)) +
+ggplot(your_data, aes(x = Data, y = `Missing Hour`, fill = Month)) +
   geom_bar(stat = "identity") +
-  labs(x = " ", y = "Missing Hour", title = " Missing Hour per Day",
+  labs(x = "Date", y = "Missing Hour", title = "Missing Hour per Date",
        fill = "Month") +
   scale_fill_manual(values = month_colors, 
-                    labels = c("Jan", "Feb", "Mar", "Apr", "May", "Jun",
-                               "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")) +
+                    labels = c("January", "February", "March", "April", "May", "June",
+                               "July", "August", "September", "October", "November", "December")) +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+# with nomralization
+
+# Normalize the 'Missing Hour' values
+your_data$Normalized_Missing_Hour <- your_data$`Missing Hour` / 24
+
+# Plot the barplot
+ggplot(your_data, aes(x = Data, y = Normalized_Missing_Hour, fill = Month)) +
+  geom_bar(stat = "identity") +
+  labs(x = "Date", y = "Normalized Missing Hour", title = "Normalized Missing Hour per Date",
+       fill = "Month") +
+  scale_fill_manual(values = month_colors, 
+                    labels = c("January", "February", "March", "April", "May", "June",
+                               "July", "August", "September", "October", "November", "December")) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
 
 ########################## Prezzo-Ora's Boxplot #############################
 
+# If you want a single month selected
+df_boxplot <- df[month(df$Data) == 7,]
+
 # Calculate median values of Prezzo for each Ora
-medians <- df %>%
+medians <- df_boxplot %>%
   group_by(Ora) %>%
   summarise(median_Prezzo = median(Prezzo)) %>%
   mutate(color_value = rank(median_Prezzo, ties.method = "first")) # Rank based on median
 
 # Join the median values back to the original data frame
-df_boxplot <- df %>%
+df_boxplot <- df_boxplot %>%
   left_join(medians, by = "Ora")
-
-# If you want a single month selected
-df_boxplot <- df_boxplot[month(df$Data) == 7,]
-
 
 # Create the boxplot with enhanced color differentiation
 ggplot(df_boxplot, aes(x = Ora, y = Prezzo, fill = color_value)) + 
@@ -106,7 +112,6 @@ ggplot(df_boxplot, aes(x = Ora, y = Prezzo, fill = color_value)) +
   ggtitle("Boxplot of Prezzo by Ora") + 
   labs(x = "Ora", y = "Prezzo") +
   ylim(0, 250) +
-  geom_abline(slope=0, intercept = 108.68) +
   scale_fill_gradient(low = "green", high = "red", limits = c(min(medians$color_value), max(medians$color_value)),
                       breaks = c(min(medians$color_value), max(medians$color_value)),
                       labels = c(min(medians$median_Prezzo), max(medians$median_Prezzo)),
@@ -156,7 +161,8 @@ scale_fill_discrete(name = "Ora")
 ########################## Prezzo Zonale-Mese's Boxplot #############################
 
 df_boxplot <- df %>%
-  mutate(month = month(Data))
+  mutate(month = month(Data)) %>%
+  mutate(month = factor(month, levels = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)))
 
 ggplot(df_boxplot, aes(x = month, y = PrezzoZonale, fill = month)) +
   geom_boxplot() +
