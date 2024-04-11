@@ -145,7 +145,7 @@ ggplot(df_boxplot,aes(x = day, y = Prezzo)) +
   labs(x = "Giorni feriali / festivi", y = "Prezzo") +
   stat_boxplot(geom = "errorbar", width = 0.5) +
   geom_text(data = dataMedian, aes(day, MD, label = MD), 
-              position = position_nudge(x = -0.2), size = 5, vjust = -0.8)
+            position = position_nudge(x = -0.2), size = 5, vjust = -0.8)
 
 # cleaning variables
 rm(dataMedian, df_boxplot)
@@ -168,7 +168,7 @@ ggplot(df_boxplot, aes(x = month, y = PrezzoZonale, fill = month)) +
   geom_boxplot() +
   labs(x = "month", y = "prezzoZonale") +
   ggtitle("Boxplot of prezzoZonale by month")
-  scale_fill_discrete(name = "month")
+scale_fill_discrete(name = "month")
 
 # Cleaning variables
 rm(df_boxplot)
@@ -268,9 +268,9 @@ rm(df, day, hours, zona_mercato)
 
 # calculate the cumulative sum of 'Quantita' for each 'Data' and 'Ora'
 df_curve <- df_curve %>%
- group_by(Data, Ora) %>%
- mutate(cum_sum_quantita = cumsum(Quantita),
-        cum_sum_quantita_normalized = (cum_sum_quantita - min(cum_sum_quantita)) / (max(cum_sum_quantita) - min(cum_sum_quantita)))
+  group_by(Data, Ora) %>%
+  mutate(cum_sum_quantita = cumsum(Quantita),
+         cum_sum_quantita_normalized = (cum_sum_quantita - min(cum_sum_quantita)) / (max(cum_sum_quantita) - min(cum_sum_quantita)))
 
 # Create dataframes from the splitting of df_curve by 'Ora' and 'Data'
 df_split_by_hour <- split(df_curve, interaction(df_curve$Ora, df_curve$Data))
@@ -287,14 +287,14 @@ step_fun_list <- lapply(df_split_by_hour, function(df) {
 
 # Function to find indexes of the desired hour in the list of dataframes
 find_hour_index <- function(desired_hour, list_of_dfs) {
- # Convert desired_hour to a character for pattern matching
- desired_hour <- as.character(desired_hour)
+  # Convert desired_hour to a character for pattern matching
+  desired_hour <- as.character(desired_hour)
   
- # Initialize an empty vector to store the indices
- indices <- c()
+  # Initialize an empty vector to store the indices
+  indices <- c()
   
- # Loop through the names of the data frames
- for (i in seq_along(list_of_dfs)) {
+  # Loop through the names of the data frames
+  for (i in seq_along(list_of_dfs)) {
     # Extract the hour from the name using a regular expression
     # This pattern matches the first sequence of digits before the dot
     hour <- regmatches(names(list_of_dfs)[i], regexpr("^\\d+", names(list_of_dfs)[i]))
@@ -304,46 +304,46 @@ find_hour_index <- function(desired_hour, list_of_dfs) {
       # If a match is found, add the index to the indices vector
       indices <- c(indices, i)
     }
- }
+  }
   
- # Return the indices vector
- return(indices)
+  # Return the indices vector
+  return(indices)
 }
 
 # Initialize an empty data frame to store the results of mean step functions
 data <- data.frame()
 
 for (desired_hour in desired_hours){
-
+  
   # Find the index of the desired hour in the list of data frames
   hour_index <- find_hour_index(desired_hour, df_split_by_hour)
-
+  
   # Check if the hour_index is valid
   if (length(hour_index) == 0) {
     print("Desired hour not found in the list of data frames, hour: ", desired_hour)
   }
-
+  
   # Extract the step functions for the desired hour
   # Assuming the step functions are in the same order as the data frames in df_split_by_hour
   step_funs_desired_hour <- list()
   for (i in seq_along(hour_index)) {
     step_funs_desired_hour <- append(step_funs_desired_hour, step_fun_list[[hour_index[i]]])
   }
-
+  
   # Step 2: Find the unique points at which to evaluate the step functions
   unique_points <- unique(unlist(lapply(df_split_by_hour, function(df) df$cum_sum_quantita_normalized)))
   unique_points <- sort(unique_points)
-
+  
   # Step 3: Evaluate the step functions at these points
   values_desired_hour <- sapply(step_funs_desired_hour, function(step_fun) step_fun(unique_points))
-
+  
   # Step 4: Calculate the mean of these values
   mean_values <- rowMeans(values_desired_hour)
-
+  
   # Step 5: Save mean values in a dummy dataframe
   temp <- data.frame(unique_points, mean_values)
   temp$Ora <- desired_hour
-
+  
   # Step 6: Append the dummy dataframe to the main dataframe
   data <- rbind(data, temp)
 }
@@ -356,8 +356,8 @@ data$Ora <- factor(data$Ora, levels = desired_hours)
 
 # Plot using ggplot2
 ggplot(data, aes(x = unique_points, y = mean_values, color = Ora)) +
- geom_line() +
- labs(x = "Normalized Cumulative Quantity",
+  geom_line() +
+  labs(x = "Normalized Cumulative Quantity",
        y = "Mean Prezzo",
        title = "Mean Prezzo by Normalized Cumulative Quantity") +
- theme_minimal()
+  theme_minimal()
