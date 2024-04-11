@@ -273,6 +273,50 @@ df_curve <- df_curve %>%
  group_by(Data, Ora) %>%
  mutate(cum_sum_quantita = cumsum(Quantita),
         cum_sum_quantita_normalized = (cum_sum_quantita - min(cum_sum_quantita)) / (max(cum_sum_quantita) - min(cum_sum_quantita)))
+##test
+df_curve <- df_curve %>%
+  group_by(Data, Ora) %>%
+  mutate(cum_sum_quantita = cumsum(Quantita))
+step_fun_list <- lapply(df_split_by_hour, function(df) {
+  df <- df[order(df$cum_sum_quantita), ] # Sort by 'cum_sum_quantita_normalized'
+  y <- c(df$Prezzo, tail(df$Prezzo, n = 1)) # Add the last value to the end, otherwise error message
+  stepfun(df$cum_sum_quantita, y) # create the step function
+})
+for (desired_hour in desired_hours){
+  
+  # Find the index of the desired hour in the list of data frames
+  hour_index <- find_hour_index(desired_hour, df_split_by_hour)
+  
+  # Check if the hour_index is valid
+  if (length(hour_index) == 0) {
+    print("Desired hour not found in the list of data frames, hour: ", desired_hour)
+  }
+  
+  # Extract the step functions for the desired hour
+  # Assuming the step functions are in the same order as the data frames in df_split_by_hour
+  step_funs_desired_hour <- list()
+  for (i in seq_along(hour_index)) {
+    step_funs_desired_hour <- append(step_funs_desired_hour, step_fun_list[[hour_index[i]]])
+  }
+  
+  # Step 2: Find the unique points at which to evaluate the step functions
+  unique_points <- unique(unlist(lapply(df_split_by_hour, function(df) df$cum_sum_quantita)))
+  unique_points <- sort(unique_points)
+  
+  # Step 3: Evaluate the step functions at these points
+  values_desired_hour <- sapply(step_funs_desired_hour, function(step_fun) step_fun(unique_points))
+  
+  # Step 4: Calculate the mean of these values
+  mean_values <- rowMeans(values_desired_hour)
+  
+  # Step 5: Save mean values in a dummy dataframe
+  temp <- data.frame(unique_points, mean_values)
+  temp$Ora <- desired_hour
+  
+  # Step 6: Append the dummy dataframe to the main dataframe
+  data <- rbind(data, temp)
+}
+##end
 
 # Create dataframes from the splitting of df_curve by 'Ora' and 'Data'
 df_split_by_hour <- split(df_curve, interaction(df_curve$Ora, df_curve$Data))
@@ -359,7 +403,12 @@ data$Ora <- factor(data$Ora, levels = desired_hours)
 # Plot using ggplot2
 ggplot(data, aes(x = unique_points, y = mean_values, color = Ora)) +
  geom_line() +
+  ylim(0,400) +
  labs(x = "Normalized Cumulative Quantity",
        y = "Mean Prezzo",
        title = "Mean Prezzo by Normalized Cumulative Quantity") +
- theme_minimal()
+ theme_minimal() +
+  geom_abline(aes(intercept=194.5,slope=0)) #PrezzoZonale mean of Jan
+
+#lim for non normalized
+# xlim(75000,105000) +
