@@ -91,19 +91,18 @@ ggplot(your_data, aes(x = Data, y = Normalized_Missing_Hour, fill = Month)) +
 
 ########################## Prezzo-Ora's Boxplot #############################
 
+# If you want a single month selected
+df_boxplot <- df[month(df$Data) == 7,]
+
 # Calculate median values of Prezzo for each Ora
-medians <- df %>%
+medians <- df_boxplot %>%
   group_by(Ora) %>%
   summarise(median_Prezzo = median(Prezzo)) %>%
   mutate(color_value = rank(median_Prezzo, ties.method = "first")) # Rank based on median
 
 # Join the median values back to the original data frame
-df_boxplot <- df %>%
+df_boxplot <- df_boxplot %>%
   left_join(medians, by = "Ora")
-
-# If you want a single month selected
-df_boxplot <- df_boxplot[month(df$Data) == 7,]
-
 
 # Create the boxplot with enhanced color differentiation
 ggplot(df_boxplot, aes(x = Ora, y = Prezzo, fill = color_value)) + 
