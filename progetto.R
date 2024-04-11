@@ -86,7 +86,7 @@ ggplot(missing_hours, aes(x = Data, y = `Missing Hour`, fill = Month)) +
 ########################## Prezzo-Ora's Boxplot #############################
 
 # If you want a single month selected
-df_boxplot <- df[month(df$Data) == 7,]
+df_boxplot <- df[month(df$Data) == 1,]
 
 # Calculate median values of Prezzo for each Ora
 medians <- df_boxplot %>%
@@ -105,7 +105,7 @@ ggplot(df_boxplot, aes(x = Ora, y = Prezzo, fill = color_value)) +
   #         size = 3, vjust = -1.5) +
   ggtitle("Boxplot of Prezzo by Ora") + 
   labs(x = "Ora", y = "Prezzo") +
-  ylim(0, 250) +
+  coord_cartesian(ylim = c(0, 400)) +
   scale_fill_gradient(low = "green", high = "red", limits = c(min(medians$color_value), max(medians$color_value)),
                       breaks = c(min(medians$color_value), max(medians$color_value)),
                       labels = c(min(medians$median_Prezzo), max(medians$median_Prezzo)),
@@ -132,7 +132,7 @@ dataMedian <- summarise(group_by(df_boxplot, day), MD = median(Prezzo))
 
 
 # creating a boxplot
-ggplot(df_boxplot,aes(x = day, y = Prezzo)) + 
+ggplot(df_boxplot, aes(x = day, y = Prezzo)) + 
   geom_boxplot() + 
   theme_minimal() + 
   ggtitle("Boxplot of Prezzo by Giorni feriali / festivi") +
