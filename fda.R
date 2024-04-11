@@ -30,19 +30,25 @@ df_plot$cum_sum_quantita <- as.numeric(df_plot$cum_sum_quantita)
 
 ########################## loess approch #############################
 
-df_plot <- subset(df_plot, cum_sum_quantita >= 75000 & cum_sum_quantita <= 100000)
-
 # Create a smooth line for the Prezzo values
 fit <- loess(df_plot$Prezzo ~ df_plot$cum_sum_quantita)
 
 t <- paste("Loess: ", day, " H:", hours)
 
+# curve complete
 plot(df_plot$cum_sum_quantita, df_plot$Prezzo, lwd = 2, col = "red", xlab = "Observation Number", ylab = "Prezzo", main = t)
-lines(df_plot$cum_sum_quantita, df_plot$Prezzo, lwd = 2, col = "green")
 lines(df_plot$cum_sum_quantita, df_plot$PrezzoZonale)
-
 yl <- predict(fit, newdata = data.frame(x = df_plot$cum_sum_quantita))
 lines(df_plot$cum_sum_quantita, yl, col = "blue", lwd = 2)
+
+# zoom on PrezzoZonale hotspot
+df_plot_hotspot <- subset(df_plot, cum_sum_quantita >= 75000 & cum_sum_quantita <= 100000)
+
+plot(df_plot_hotspot$cum_sum_quantita, df_plot_hotspot$Prezzo, lwd = 2, col = "red", xlab = "Observation Number", ylab = "Prezzo", main = t)
+lines(df_plot_hotspot$cum_sum_quantita, df_plot_hotspot$PrezzoZonale)
+yl <- predict(fit, newdata = data.frame(x = df_plot_hotspot$cum_sum_quantita))
+lines(df_plot_hotspot$cum_sum_quantita, yl, col = "blue", lwd = 2)
+
 
 ########################## bezier Curve approch #############################
 
@@ -76,10 +82,15 @@ bez <- function(x, y, t) {
 
 t <- paste("Bezier: ", day, " H:", hours)
 
+# curve complete
 plot(df_plot$cum_sum_quantita, df_plot$Prezzo, lwd = 2, col = "red", xlab = "Observation Number", ylab = "Prezzo", main = t)
-lines(df_plot$cum_sum_quantita, df_plot$Prezzo, lwd = 2, col = "green")
 lines(df_plot$cum_sum_quantita, df_plot$PrezzoZonale)
-smoothed_curve <- bezier_curve(df_plot$cum_sum_quantita, df_plot$Prezzo, 50)
+smoothed_curve <- bezier_curve(df_plot$cum_sum_quantita, df_plot$Prezzo, 150)
+points(smoothed_curve$x, smoothed_curve$y, type = "l", col = "blue")
+
+# zoom on prezzoZonale hotspot 
+plot(df_plot$cum_sum_quantita, df_plot$Prezzo, lwd = 2, col = "red", xlab = "Observation Number", ylab = "Prezzo", main = t, xlim = c(75000, 100000), ylim = c(0, 500))
+lines(df_plot$cum_sum_quantita, df_plot$PrezzoZonale)
 points(smoothed_curve$x, smoothed_curve$y, type = "l", col = "blue")
 
 ########################## Spline approch #############################
