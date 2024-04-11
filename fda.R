@@ -42,13 +42,21 @@ yl <- predict(fit, newdata = data.frame(x = df_plot$cum_sum_quantita))
 lines(df_plot$cum_sum_quantita, yl, col = "blue", lwd = 2)
 
 # zoom on PrezzoZonale hotspot
+
 df_plot_hotspot <- subset(df_plot, cum_sum_quantita >= 75000 & cum_sum_quantita <= 100000)
 
-plot(df_plot_hotspot$cum_sum_quantita, df_plot_hotspot$Prezzo, lwd = 2, col = "red", xlab = "Observation Number", ylab = "Prezzo", main = t)
-lines(df_plot_hotspot$cum_sum_quantita, df_plot_hotspot$PrezzoZonale)
-yl <- predict(fit, newdata = data.frame(x = df_plot_hotspot$cum_sum_quantita))
-lines(df_plot_hotspot$cum_sum_quantita, yl, col = "blue", lwd = 2)
+fit <- loess(Prezzo ~ cum_sum_quantita, data = df_plot_hotspot)
 
+# Ensure the newdata data frame matches the structure of the original data
+newdata <- data.frame(cum_sum_quantita = df_plot_hotspot$cum_sum_quantita)
+
+# Generate predictions
+yl <- predict(fit, newdata = newdata)
+
+# Now, plotting should work without errors
+plot(df_plot_hotspot$cum_sum_quantita, df_plot_hotspot$Prezzo, lwd = 2, col = "red", xlab = "Observation Number", ylab = "Prezzo", main = "Your Title Here", xlim = c(75000, 100000), ylim = c(0, 500))
+lines(df_plot_hotspot$cum_sum_quantita, df_plot_hotspot$PrezzoZonale)
+lines(df_plot_hotspot$cum_sum_quantita, yl, col = "blue", lwd = 2)
 
 ########################## bezier Curve approch #############################
 
