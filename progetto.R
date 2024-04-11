@@ -88,10 +88,8 @@ ggplot(your_data, aes(x = Data, y = Normalized_Missing_Hour, fill = Month)) +
                                "July", "August", "September", "October", "November", "December")) +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 
-# with all dates
 
-
-T########################## Prezzo-Ora's Boxplot #############################
+########################## Prezzo-Ora's Boxplot #############################
 
 # Calculate median values of Prezzo for each Ora
 medians <- df %>%
@@ -164,7 +162,8 @@ scale_fill_discrete(name = "Ora")
 ########################## Prezzo Zonale-Mese's Boxplot #############################
 
 df_boxplot <- df %>%
-  mutate(month = month(Data))
+  mutate(month = month(Data)) %>%
+  mutate(month = factor(month, levels = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)))
 
 ggplot(df_boxplot, aes(x = month, y = PrezzoZonale, fill = month)) +
   geom_boxplot() +
