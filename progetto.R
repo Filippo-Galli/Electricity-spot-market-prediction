@@ -12,7 +12,7 @@ library(stats)
 ######################### Data Processing #############################
 
 # Load the data from .csv file
-df <- read.csv("csv/2023-01-01_to_2023-12-31.csv")
+df <- read.csv("csv/2021-01-01_to_2021-12-31.csv")
 
 # Ordering Ora's value
 df$Ora <- factor(df$Ora, levels = c("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24"))
@@ -21,9 +21,12 @@ df$ZonaMercato <- factor(df$ZonaMercato)
 
 ########################## All zones #################################
 
-specific_zone <- "CALA;CNOR;CSUD;NORD;SARD;SICI;SUD;AUST;COAC;CORS;FRAN;GREC;SLOV;SVIZ;MALT;COUP;MONT;"
+#for 22 23 specific_zone <- "CALA;CNOR;CSUD;NORD;SARD;SICI;SUD;AUST;COAC;CORS;FRAN;GREC;SLOV;SVIZ;MALT;COUP;MONT;"
+#for 21    specific_zone <- "CALA;CNOR;CSUD;NORD;SARD;SICI;SUD;AUST;COAC;CORS;FRAN;GREC;SLOV;SVIZ;MALT;MONT;"
+specific_zone <- "CALA;CNOR;CSUD;NORD;SARD;SICI;SUD;AUST;COAC;CORS;FRAN;GREC;SLOV;SVIZ;MALT;MONT;"
 
 count_zona_mercato <- count(df %>% group_by(ZonaMercato))
+
 
 ggplot(count_zona_mercato, aes(x = ZonaMercato, y = n, fill=ZonaMercato!=specific_zone)) +
   geom_bar(stat="identity",color="black") +
@@ -86,7 +89,7 @@ ggplot(missing_hours, aes(x = Data, y = `Missing Hour`, fill = Month)) +
 ########################## Prezzo-Ora's Boxplot #############################
 
 # If you want a single month selected
-df_boxplot <- df[month(df$Data) == 1,]
+df_boxplot <- df[month(df$Data) == 1,] %>% filter(ZonaMercato == specific_zone)
 
 # Calculate median values of Prezzo for each Ora
 medians <- df_boxplot %>%
