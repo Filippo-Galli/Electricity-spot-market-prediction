@@ -12,7 +12,7 @@ library(stats)
 ######################### Data Processing #############################
 
 # Load the data from .csv file
-df <- read.csv("csv/2021-01-01_to_2021-12-31.csv")
+df <- read.csv("csv/2023-01-01_to_2023-12-31.csv")
 
 # Ordering Ora's value
 df$Ora <- factor(df$Ora, levels = c("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24"))
@@ -88,8 +88,14 @@ ggplot(missing_hours, aes(x = Data, y = `Missing Hour`, fill = Month)) +
 
 ########################## Prezzo-Ora's Boxplot #############################
 
+specific_zone <- "CALA;CNOR;CSUD;NORD;SARD;SICI;SUD;AUST;COAC;CORS;FRAN;GREC;SLOV;SVIZ;MALT;COUP;MONT;"
+
 # If you want a single month selected
-df_boxplot <- df[month(df$Data) == 1,] %>% filter(ZonaMercato == specific_zone)
+#df_boxplot <- df[month(df$Data) == 6,] %>% filter(ZonaMercato == specific_zone)
+
+df_boxplot <- df %>% filter(ZonaMercato == specific_zone)
+
+df_boxplot <- df_boxplot %>% filter(!is.na(Ora))
 
 # Calculate median values of Prezzo for each Ora
 medians <- df_boxplot %>%
@@ -106,9 +112,9 @@ ggplot(df_boxplot, aes(x = Ora, y = Prezzo, fill = color_value)) +
   geom_boxplot() + 
   #geom_text(data = medians, aes(x = Ora, y = median_Prezzo, label = round(median_Prezzo, 2)), 
   #         size = 3, vjust = -1.5) +
-  ggtitle("Boxplot of Prezzo by Ora") + 
+  ggtitle("Boxplot of Prezzo by Ora - Year 23") + 
   labs(x = "Ora", y = "Prezzo") +
-  coord_cartesian(ylim = c(0, 400)) +
+  coord_cartesian(ylim = c(0, 500)) +
   scale_fill_gradient(low = "green", high = "red", limits = c(min(medians$color_value), max(medians$color_value)),
                       breaks = c(min(medians$color_value), max(medians$color_value)),
                       labels = c(min(medians$median_Prezzo), max(medians$median_Prezzo)),

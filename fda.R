@@ -88,7 +88,7 @@ bez <- function(x, y, t) {
   return(list(x = outx, y = outy))
 }
 
-t <- paste("Bezier: ", day, " H:", hours)
+t <- paste(day, " H:", hours)
 
 # curve complete
 plot(df_plot$cum_sum_quantita, df_plot$Prezzo, lwd = 2, col = "red", xlab = "Observation Number", ylab = "Prezzo", main = t)
