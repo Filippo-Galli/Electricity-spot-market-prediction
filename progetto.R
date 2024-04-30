@@ -12,7 +12,7 @@ library(stats)
 ######################### Data Processing #############################
 
 # Load the data from .csv file
-df <- read.csv("csv/2023-01-01_to_2023-12-31.csv")
+df <- read.csv("csv/2023-01-01_to_2023-12-31OFF.csv")
 
 # Ordering Ora's value
 df$Ora <- factor(df$Ora, levels = c("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24"))
@@ -23,7 +23,7 @@ df$ZonaMercato <- factor(df$ZonaMercato)
 
 #for 22 23 specific_zone <- "CALA;CNOR;CSUD;NORD;SARD;SICI;SUD;AUST;COAC;CORS;FRAN;GREC;SLOV;SVIZ;MALT;COUP;MONT;"
 #for 21    specific_zone <- "CALA;CNOR;CSUD;NORD;SARD;SICI;SUD;AUST;COAC;CORS;FRAN;GREC;SLOV;SVIZ;MALT;MONT;"
-specific_zone <- "CALA;CNOR;CSUD;NORD;SARD;SICI;SUD;AUST;COAC;CORS;FRAN;GREC;SLOV;SVIZ;MALT;MONT;"
+specific_zone <- "CALA;CNOR;CSUD;NORD;SARD;SICI;SUD;AUST;COAC;CORS;FRAN;GREC;SLOV;SVIZ;MALT;COUP;MONT;"
 
 count_zona_mercato <- count(df %>% group_by(ZonaMercato))
 
@@ -84,6 +84,50 @@ ggplot(missing_hours, aes(x = Data, y = `Missing Hour`, fill = Month)) +
                     labels = c("Jan", "Feb", "Mar", "Apr", "May", "Jun",
                                "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")) +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+########################## Data Loss with clustered zone ##################
+
+# null prices per day per hour
+null_prices <- df %>%
+  group_by(Data, Ora) %>%
+  summarize(num_nulls = sum(is.na(Prezzo)))
+
+# count missing hour per Date
+missing_hours <- null_prices %>%
+  group_by(Data) %>% summarize( MissingHour = sum(num_nulls))
+
+# Convert the 'Data' column to Date type
+missing_hours$Data <- as.Date(missing_hours$Data)
+
+# Extract the month from the 'Data' column
+missing_hours$Month <- format(missing_hours$Data, "%m")
+
+# Define colors for each month
+month_colors <- c(
+  "01" = "red",
+  "02" = "blue",
+  "03" = "green",
+  "04" = "orange",
+  "05" = "purple",
+  "06" = "cyan",
+  "07" = "magenta",
+  "08" = "yellow",
+  "09" = "gray",
+  "10" = "darkgreen",
+  "11" = "darkblue",
+  "12" = "darkred"
+)
+
+# Plot the barplot with legend
+ggplot(missing_hours, aes(x = Data, y = `MissingHour`, fill = Month)) +
+  geom_bar(stat = "identity") +
+  labs(x = " ", y = "Missing Hour", title = " Missing Hour per Day",
+       fill = "Month") +
+  scale_fill_manual(values = month_colors, 
+                    labels = c("Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                               "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
 
 
 ########################## Prezzo-Ora's Boxplot #############################
