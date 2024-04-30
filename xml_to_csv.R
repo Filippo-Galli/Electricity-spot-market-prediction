@@ -4,7 +4,7 @@ rm(list = ls())
 all_files <- FALSE
 # Set Date range to convert
 initial_date <- as.Date("2023-01-01")
-final_date <- as.Date("2022-06-01")
+final_date <- as.Date("2023-12-31")
 
 ############################ Library #############################
  
@@ -89,20 +89,36 @@ print("Data Cleaning...")
 table(df$ZonaMercato)
 correct_zone <- c('CALA;CNOR;CSUD;NORD;SARD;SICI;SUD;AUST;COAC;CORS;FRAN;GREC;SLOV;SVIZ;MALT;COUP;MONT;')
 df <- df[!df$ZonaMercato != correct_zone, ]
+#multizones
+correct_zones <- c('CALA;CNOR;CSUD;NORD;SARD;SICI;SUD;AUST;COAC;CORS;FRAN;GREC;SLOV;SVIZ;MALT;COUP;MONT;',
+                   'CALA;CNOR;CSUD;NORD;SARD;SICI;SUD;AUST;COAC;CORS;FRAN;GREC;SLOV;SVIZ;COUP;MONT;',
+                   'CALA;CNOR;CSUD;NORD;SARD;SICI;SUD;AUST;COAC;FRAN;GREC;SLOV;SVIZ;MALT;COUP;MONT;',
+                   'CALA;CNOR;CSUD;NORD;SARD;SUD;AUST;COAC;CORS;FRAN;GREC;SLOV;SVIZ;COUP;MONT;')
+df_multizone <- df[df$ZonaMercato %in% correct_zones,]
 table(df$ZonaMercato)
 
-# Clean all the demand rows
-table(df$Tipo)
-correct_tipo <- c('OFF')
-df <- df[!df$Tipo != correct_tipo, ]
-table(df$Tipo)
+#split by Tipo
+df_multizone_unified_OFF <- subset(df_multizone[df_multizone$Tipo == 'OFF',], select = -c(Tipo, ZonaMercato, Mercato, element))
+df_multizone_unified_BID <- subset(df_multizone[df_multizone$Tipo == 'BID',], select = -c(Tipo, ZonaMercato, Mercato, element))
+
+# Clean all the demand rows 
+  #table(df$Tipo)
+  #correct_tipo <- c('OFF')
+  #df <- df[!df$Tipo != correct_tipo, ]
+  #table(df$Tipo)
 
 # dropping column with only one value
 df <- subset(df, select = -c(Tipo, ZonaMercato, Mercato, element))
 
+rm(df_multizone)
+
 ######################### Data Pre-processing #############################
 
 print("Data Prepocessing...")
+
+#select df to process
+df_tot <- df
+df <- df_multizone_unified_BID
 
 # Convert the 'Date' column from character to date
 df <- df %>%
@@ -131,5 +147,6 @@ df <- na.omit(df)
 
 ######################### current DF to .CSV #############################
 # naming with selected data range and select csv folder to save it into
-file_name_csv <- paste0("csv/",date_range[1],"_to_",date_range[length(date_range)],".csv")
+Tipo <- 'BID' #or BID
+file_name_csv <- paste0("csv/",date_range[1],"_to_",date_range[length(date_range)],Tipo,".csv")
 write.csv(df, file_name_csv , row.names = FALSE)
