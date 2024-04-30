@@ -490,3 +490,125 @@ ggplot(data, aes(x = unique_points, y = mean_values, color = Ora)) +
   geom_abline(slope = 0 , intercept = mean_prezzo_zonale, lty=2) +
   geom_text(aes(x = 77000, y = mean_prezzo_zonale + 10, label = "mean PrezzoZonale"), 
             color = "black", size = 3)
+
+######################### Smoothing and gcv #################
+rm(list = ls())
+
+######################### Library #############################
+
+library(dplyr)
+library(ggplot2)
+library(tidyverse)
+library(fda)
+
+######################### Data Processing #############################
+
+# Load the data from .csv file
+df <- read.csv("csv/2023-01-01_to_2023-12-31.csv")
+
+df$Ora <- factor(df$Ora, levels = c("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24"))
+df$Data <- as.Date(df$Data)
+df$ZonaMercato <- factor(df$ZonaMercato)
+
+######################### Smoothing - Prezzo #############################
+
+day <- c("2023-01-02")
+hours <- c("1")
+zona_mercato <- c("CALA;CNOR;CSUD;NORD;SARD;SICI;SUD;AUST;COAC;CORS;FRAN;GREC;SLOV;SVIZ;MALT;COUP;MONT;")
+
+# subset of df for smoothing
+df_subset <- df[df$Data %in% day & df$Ora %in% hours, ]
+
+df_subset$cum_sum_quantita <- cumsum(df_subset$Quantita)
+df_subset$cum_sum_quantita <- as.numeric(df_subset$cum_sum_quantita)
+
+##
+# Set parameters
+m <- 4          # spline order 
+degree <- m-1    # spline degree 
+
+nbasis <- 20
+abscissa <- df_subset$cum_sum_quantita
+# Create the basis
+#breaks = c(min(abscissa), seq(80000,95000, length.out=16), max(abscissa))
+basis <- create.bspline.basis(rangeval=c(70000, 120000), nbasis=nbasis, norder=m)
+# If breaks are not provided, equally spaced knots are created
+plot(basis)
+# Evaluate the basis on the grid of abscissa
+basismat <- eval.basis(abscissa, basis)
+
+# Fit via LS
+est_coef = lsfit(basismat, df_subset$Prezzo, intercept=FALSE)$coef
+
+Xsp0 <- basismat %*% est_coef
+dev.new()
+par(mfrow=c(1,1))
+step_function <- stepfun(abscissa, c(df_subset$Prezzo[1], df_subset$Prezzo))
+plot(step_function, verticals=T, col = "red")
+abline(v=basis$params)
+lines(abscissa, df_subset$PrezzoZonale)
+points(abscissa, Xsp0 ,type="l",col="blue",lwd=2)
+
+#next points
+#1) do the same for many hours and days
+#2) CV to determine the number of basis (and where to put the knots)
+
+
+zona_mercato <- c("CALA;CNOR;CSUD;NORD;SARD;SICI;SUD;AUST;COAC;CORS;FRAN;GREC;SLOV;SVIZ;MALT;COUP;MONT;")
+
+m <- 4          # spline order 
+degree <- m-1    # spline degree 
+
+nbasis <- 20
+#breaks = c(min(abscissa), seq(80000,95000, length.out=16), max(abscissa))
+#basis <- create.bspline.basis(rangeval=c(min(abscissa), max(abscissa)), nbasis=nbasis, norder=m, breaks = breaks)
+basis <- create.bspline.basis(rangeval=c(70000, 120000), nbasis=nbasis, norder=m)
+my_list <- list()
+v <- unique(df$Data)[1:2]
+for(d in v) {
+  for(h in 1:24) {
+    df_subset <- df[df$Data == d & df$Ora == h, ]
+    df_subset$cum_sum_quantita <- cumsum(df_subset$Quantita)
+    df_subset$cum_sum_quantita <- as.numeric(df_subset$cum_sum_quantita)
+    abscissa <- df_subset$cum_sum_quantita
+    basismat <- eval.basis(abscissa, basis)
+    est_coef = lsfit(basismat, df_subset$Prezzo, intercept=FALSE)$coef
+    Xsp0 <- basismat %*% est_coef
+    name <- paste(as.character(as.Date(d)), as.character(h))
+    my_list[[name]] <- Xsp0
+  }
+}
+#problema: se il range non è almeno l'unione di tutti i domini non funziona, però in tal caso
+#se una curva ha un dominio molto più piccolo è approssimata malissimo
+d = "2023-01-08"
+for(h in 1:10) {
+  df_subset <- df[df$Data == d & df$Ora == h, ]
+  df_subset$cum_sum_quantita <- cumsum(df_subset$Quantita)
+  df_subset$cum_sum_quantita <- as.numeric(df_subset$cum_sum_quantita)
+  abscissa <- df_subset$cum_sum_quantita
+  step_function <- stepfun(abscissa, c(df_subset$Prezzo[1], df_subset$Prezzo))
+  plot(step_function, verticals=T, col = "red")
+  abline(v=basis$params)
+  lines(abscissa, df_subset$PrezzoZonale)
+  points(abscissa, my_list[[paste(d,as.character(h))]] ,type="l",col="blue",lwd=2)
+}
+
+# generalized cross-validation
+d <- c("2023-01-02")
+h <- c("2")
+df_subset <- df[df$Data == d & df$Ora == h, ]
+df_subset$cum_sum_quantita <- cumsum(df_subset$Quantita)
+df_subset$cum_sum_quantita <- as.numeric(df_subset$cum_sum_quantita)
+abscissa <- df_subset$cum_sum_quantita
+m <- 4
+nbasis <- 20:30
+gcv <- numeric(length(nbasis))
+for (i in 1:length(nbasis)){
+  basis <- create.bspline.basis(c(70000, 120000), nbasis[i], m)
+  gcv[i] <- smooth.basis(abscissa, df_subset$Prezzo, basis)$gcv
+}
+par(mfrow=c(1,1))
+plot(nbasis,gcv)
+nbasis[which.min(gcv)]
+abline(v = nbasis[which.min(gcv)], col = 2)
+#chol fact error
