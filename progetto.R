@@ -556,8 +556,8 @@ df$ZonaMercato <- factor(df$ZonaMercato)
 
 ######################### Smoothing - Prezzo #############################
 
-day <- c("2023-01-02")
-hours <- c("1")
+day <- c("2023-01-01")
+hours <- c("18")
 zona_mercato <- c("CALA;CNOR;CSUD;NORD;SARD;SICI;SUD;AUST;COAC;CORS;FRAN;GREC;SLOV;SVIZ;MALT;COUP;MONT;")
 
 # subset of df for smoothing
@@ -566,32 +566,38 @@ df_subset <- df[df$Data %in% day & df$Ora %in% hours, ]
 df_subset$cum_sum_quantita <- cumsum(df_subset$Quantita)
 df_subset$cum_sum_quantita <- as.numeric(df_subset$cum_sum_quantita)
 
-##
+## smoothing one curve, in a restricted region
 # Set parameters
 m <- 4          # spline order 
 degree <- m-1    # spline degree 
 
-nbasis <- 20
+nbasis <- 12
 abscissa <- df_subset$cum_sum_quantita
 # Create the basis
 #breaks = c(min(abscissa), seq(80000,95000, length.out=16), max(abscissa))
-basis <- create.bspline.basis(rangeval=c(70000, 120000), nbasis=nbasis, norder=m)
+l_bound = 80000
+u_bound = 100000
+basis <- create.bspline.basis(rangeval=c(l_bound, u_bound), nbasis=nbasis, norder=m)
 # If breaks are not provided, equally spaced knots are created
-plot(basis)
 # Evaluate the basis on the grid of abscissa
-basismat <- eval.basis(abscissa, basis)
+indeces <- abscissa >= l_bound & abscissa <= u_bound
+restricted_abscissa <- abscissa[indeces]
+basismat <- eval.basis(restricted_abscissa, basis)
 
 # Fit via LS
-est_coef = lsfit(basismat, df_subset$Prezzo, intercept=FALSE)$coef
+restricted_prezzo <- df_subset$Prezzo[indeces]
+est_coef = lsfit(basismat, restricted_prezzo, intercept=FALSE)$coef
 
 Xsp0 <- basismat %*% est_coef
-dev.new()
+
 par(mfrow=c(1,1))
-step_function <- stepfun(abscissa, c(df_subset$Prezzo[1], df_subset$Prezzo))
+step_function <- stepfun(restricted_abscissa, c(restricted_prezzo[1], restricted_prezzo))
 plot(step_function, verticals=T, col = "red")
 abline(v=basis$params)
-lines(abscissa, df_subset$PrezzoZonale)
-points(abscissa, Xsp0 ,type="l",col="blue",lwd=2)
+lines(restricted_abscissa, df_subset$PrezzoZonale[indeces])
+points(restricted_abscissa, Xsp0 ,type="l",col="blue",lwd=2)
+
+#se il numero di basi è troppo elevato warning:la matrice 'X' è collineare
 
 #next points
 #1) do the same for many hours and days
@@ -602,21 +608,25 @@ zona_mercato <- c("CALA;CNOR;CSUD;NORD;SARD;SICI;SUD;AUST;COAC;CORS;FRAN;GREC;SL
 
 m <- 4          # spline order 
 degree <- m-1    # spline degree 
-
-nbasis <- 20
+nbasis <- 6
+l_bound <- 85000 
+u_bound <- 100000
 #breaks = c(min(abscissa), seq(80000,95000, length.out=16), max(abscissa))
 #basis <- create.bspline.basis(rangeval=c(min(abscissa), max(abscissa)), nbasis=nbasis, norder=m, breaks = breaks)
-basis <- create.bspline.basis(rangeval=c(70000, 120000), nbasis=nbasis, norder=m)
+basis <- create.bspline.basis(rangeval=c(l_bound, u_bound), nbasis=nbasis, norder=m)
 my_list <- list()
-v <- unique(df$Data)[1:2]
+v <- unique(df$Data)[1:30]
 for(d in v) {
   for(h in 1:24) {
     df_subset <- df[df$Data == d & df$Ora == h, ]
     df_subset$cum_sum_quantita <- cumsum(df_subset$Quantita)
     df_subset$cum_sum_quantita <- as.numeric(df_subset$cum_sum_quantita)
     abscissa <- df_subset$cum_sum_quantita
-    basismat <- eval.basis(abscissa, basis)
-    est_coef = lsfit(basismat, df_subset$Prezzo, intercept=FALSE)$coef
+    indeces <- abscissa >= l_bound & abscissa <= u_bound
+    r_abscissa <- abscissa[indeces]
+    basismat <- eval.basis(r_abscissa, basis)
+    r_prezzo <- df_subset$Prezzo[indeces]
+    est_coef = lsfit(basismat, r_prezzo, intercept=FALSE)$coef
     Xsp0 <- basismat %*% est_coef
     name <- paste(as.character(as.Date(d)), as.character(h))
     my_list[[name]] <- Xsp0
@@ -624,18 +634,28 @@ for(d in v) {
 }
 #problema: se il range non è almeno l'unione di tutti i domini non funziona, però in tal caso
 #se una curva ha un dominio molto più piccolo è approssimata malissimo
-d = "2023-01-08"
-for(h in 1:10) {
+d = "2023-01-01"
+
+# Create an empty plot
+plot(NA, xlim = c(l_bound, u_bound), ylim = c(0, max(df$PrezzoZonale)), xlab = "Cumulative Quantity", ylab = "Price", main = "Multiple Curves", type = "n")
+
+# Loop through each hour
+for(h in 1:12) {
   df_subset <- df[df$Data == d & df$Ora == h, ]
   df_subset$cum_sum_quantita <- cumsum(df_subset$Quantita)
   df_subset$cum_sum_quantita <- as.numeric(df_subset$cum_sum_quantita)
   abscissa <- df_subset$cum_sum_quantita
-  step_function <- stepfun(abscissa, c(df_subset$Prezzo[1], df_subset$Prezzo))
-  plot(step_function, verticals=T, col = "red")
-  abline(v=basis$params)
-  lines(abscissa, df_subset$PrezzoZonale)
-  points(abscissa, my_list[[paste(d,as.character(h))]] ,type="l",col="blue",lwd=2)
+  indeces <- abscissa >= l_bound & abscissa <= u_bound
+  r_abscissa <- abscissa[indeces]
+  r_prezzo <- df_subset$Prezzo[indeces]
+  step_function <- stepfun(r_abscissa, c(r_prezzo[1], r_prezzo))
+  lines(r_abscissa, step_function(r_abscissa), col = "red") # Add step function
+  lines(r_abscissa, df_subset$PrezzoZonale[indeces], col = "green") # Add PrezzoZonale
+  points(r_abscissa, my_list[[paste(d, as.character(h))]], type = "l", col = "blue", lwd = 2) # Add points
 }
+abline(v = basis$params)
+legend("topright", legend = c("Step Function", "PrezzoZonale", "Smooth curve"), col = c("red", "green", "blue"), lty = c(1, 1, 1), lwd = c(1, 1, 2))
+
 
 # generalized cross-validation
 d <- c("2023-01-02")
@@ -644,15 +664,18 @@ df_subset <- df[df$Data == d & df$Ora == h, ]
 df_subset$cum_sum_quantita <- cumsum(df_subset$Quantita)
 df_subset$cum_sum_quantita <- as.numeric(df_subset$cum_sum_quantita)
 abscissa <- df_subset$cum_sum_quantita
+indeces <- abscissa >= l_bound & abscissa <= u_bound
+r_abscissa <- abscissa[indeces]
+r_prezzo <- df_subset$Prezzo[indeces]
 m <- 4
-nbasis <- 20:30
+nbasis <- 5:12
 gcv <- numeric(length(nbasis))
 for (i in 1:length(nbasis)){
-  basis <- create.bspline.basis(c(70000, 120000), nbasis[i], m)
-  gcv[i] <- smooth.basis(abscissa, df_subset$Prezzo, basis)$gcv
+  basis <- create.bspline.basis(c(l_bound, u_bound), nbasis[i], m)
+  gcv[i] <- smooth.basis(r_abscissa, r_prezzo, basis)$gcv
 }
 par(mfrow=c(1,1))
 plot(nbasis,gcv)
 nbasis[which.min(gcv)]
 abline(v = nbasis[which.min(gcv)], col = 2)
-#chol fact error
+#chol fact error if nbasis is too high
