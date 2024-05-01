@@ -12,7 +12,7 @@ library(stats)
 ######################### Data Processing #############################
 
 # Load the data from .csv file
-df <- read.csv("csv/2023-01-01_to_2023-12-31OFF.csv")
+df <- read.csv("csv/2023-01-01_to_2023-12-31.csv")
 
 # Ordering Ora's value
 df$Ora <- factor(df$Ora, levels = c("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24"))
