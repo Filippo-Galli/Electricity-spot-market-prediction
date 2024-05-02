@@ -544,6 +544,7 @@ library(dplyr)
 library(ggplot2)
 library(tidyverse)
 library(fda)
+library(lubridate)
 
 ######################### Data Processing #############################
 
@@ -557,58 +558,62 @@ df$ZonaMercato <- factor(df$ZonaMercato)
 unique(df$Data)
 ######################### Smoothing - Prezzo #############################
 
-library(lubridate)
-
-
 day <- c("2023-01-01")
 hours <- c("18")
 zona_mercato <- c("CALA;CNOR;CSUD;NORD;SARD;SICI;SUD;AUST;COAC;CORS;FRAN;GREC;SLOV;SVIZ;MALT;COUP;MONT;")
 
 # subset of df for smoothing
 df_subset <- df[df$Data %in% day & df$Ora %in% hours, ]
-df_subset
 
 df_subset <- df_subset[order(df_subset$Prezzo), ]
-df_subset
 
 df_subset$cum_sum_quantita <- cumsum(df_subset$Quantita)
 df_subset$cum_sum_quantita <- as.numeric(df_subset$cum_sum_quantita)
 
-## smoothing one curve, in a restricted region
 # Set parameters
 m <- 4          # spline order 
-degree <- m-1    # spline degree 
-
+degree <- m-1   # spline degree 
 nbasis <- 15
-abscissa <- df_subset$cum_sum_quantita
-abscissa
-# Create the basis
-#breaks = c(min(abscissa), seq(80000,95000, length.out=16), max(abscissa))
-l_bound = 1700
-u_bound = 40000
+l_bound <- 10000
+u_bound <- 40000
+
+# Subset the data based on the bounds
+restricted_data <- subset(df_subset, cum_sum_quantita >= l_bound & cum_sum_quantita <= u_bound)
+restricted_prezzo <- restricted_data$Prezzo
+restricted_abscissa <- restricted_data$cum_sum_quantita
+
+# Create the B-spline basis
 basis <- create.bspline.basis(rangeval=c(l_bound, u_bound), nbasis=nbasis, norder=m)
-# If breaks are not provided, equally spaced knots are created
-# Evaluate the basis on the grid of abscissa
-indeces <- abscissa >= l_bound & abscissa <= u_bound
-restricted_abscissa <- abscissa[indeces]
-restricted_abscissa
+
+# Create a step function
+step_function <- stepfun(restricted_abscissa, c(restricted_prezzo[1], restricted_prezzo))
+
+# Test 0 - isn't monotonic
+# Fit the data via Least Squares
+
+# Evaluate the basis on the restricted abscissa
 basismat <- eval.basis(restricted_abscissa, basis)
 
-# Fit via LS
-restricted_prezzo <- df_subset$Prezzo[indeces]
-est_coef = lsfit(basismat, restricted_prezzo, intercept=FALSE)$coef
-
+est_coef <- lsfit(basismat, restricted_prezzo, intercept=FALSE)$coef
 Xsp0 <- basismat %*% est_coef
-
-
-par(mfrow=c(1,1))
-step_function <- stepfun(restricted_abscissa, c(restricted_prezzo[1], restricted_prezzo))
-plot(step_function, verticals=T, col = "red")
+# Plotting
+plot(step_function, verticals=T, col = "red", main = "Prezzo by Cumulative Quantity")
 abline(v=basis$params)
-lines(restricted_abscissa, df_subset$PrezzoZonale[indeces])
-points(restricted_abscissa, Xsp0 ,type="l",col="blue",lwd=2)
+lines(restricted_abscissa, restricted_data$PrezzoZonale)
+points(restricted_abscissa, Xsp0,type="l",col="blue",lwd=2)
 
-df_subset
+# Test 1 - monotonic, is default in smooth.spline and df are decided empirically
+fit <- smooth.spline(restricted_data$cum_sum_quantita, restricted_data$Prezzo, df=20)
+
+# Plotting
+Xsp0 <- fitted(fit)
+ggplot(restricted_data, aes(x = cum_sum_quantita, y = Xsp0)) +
+  geom_line(aes(y = Xsp0), color = "red") +
+  geom_line(aes(y = PrezzoZonale), color = "green", lwd = 1) +
+  geom_line(aes(y = step_function(restricted_abscissa)), color = "blue", lwd = 1) +
+  labs(title = "Original vs Smoothed, Monotonic Curve", x = "Cumulative Sum Quantity", y = "Price") +
+  lims(y = c(0, 400))
+  theme_minimal()
 
 #se il numero di basi è troppo elevato warning:la matrice 'X' è collineare
 
