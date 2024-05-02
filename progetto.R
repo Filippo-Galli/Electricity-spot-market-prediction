@@ -554,8 +554,11 @@ df$Ora <- factor(df$Ora, levels = c("1", "2", "3", "4", "5", "6", "7", "8", "9",
 df$Data <- as.Date(df$Data)
 df$ZonaMercato <- factor(df$ZonaMercato)
 
-
+unique(df$Data)
 ######################### Smoothing - Prezzo #############################
+
+library(lubridate)
+
 
 day <- c("2023-01-01")
 hours <- c("18")
@@ -696,3 +699,137 @@ plot(nbasis,gcv)
 nbasis[which.min(gcv)]
 abline(v = nbasis[which.min(gcv)], col = 2)
 #chol fact error if nbasis is too high
+
+
+
+
+
+# ALE - - - - generalized cross-validation
+
+# Idea (just my empirical idea, to be asked to GUILLAUME)
+# To determine the number of basis, since we must have the same
+# for every day (it is not clear to me if we have this restriction
+# also for every hour, since theoretically what hour we would know
+# to predict), do gcv on every date and look at the num_basis
+# that would be chosen the higher number of times
+# For computational reasons, I'll just extract randomly the dates form the range
+
+# Q. Can we choose a different num of basis for each hour? (IMO YES)
+# As much as I know, the bid takes place the day before for every hour of the day
+# after. So we already know the hour we're looking to predict.
+
+# Other criticality. It is not so clear to me how to select in a NON empirical way
+# the restricted domain bounds
+
+l_bound <- 1000
+u_bound <- 40000
+
+d <- c("2023-01-02")
+
+start_date <- as.Date("2023-01-01")
+end_date <- as.Date("2023-02-01")
+total_days <- as.numeric(difftime(end_date, start_date, units = "days"))
+dates_vector <- seq(start_date, end_date, by = "day")
+num_dates_extract_to_gcv <- 5
+random_indices <- sample(seq_len(total_days), num_dates_extract_to_gcv)
+extracted_dates <- dates_vector[random_indices]
+extracted_dates
+df
+
+min_num_basis_current_moment <- numeric(length(num_dates_extract_to_gcv))
+
+basisOrder <- 4
+basis_min <- 4
+basis_max <- 12  # More than this we have matrix singularity
+numbasis <- seq(basis_min, basis_max, 1)
+numbasis
+
+# All this should be done for every hour
+
+max_frequency_basis_perhour <-numeric(24)
+bestBasis_perhour <-numeric(24)
+result_perhour <-numeric(24)
+
+for (hour in 1:24) {
+  
+  for (j in 1:num_dates_extract_to_gcv) {
+      
+      extracted_na <- TRUE
+      
+      while (extracted_na) {
+        df_subset <- df[df$Data == extracted_dates[i] & df$Ora == hour, ]
+        df_subset <- df_subset[order(df_subset$Prezzo), ]
+        
+        df_subset$cum_sum_quantita <- cumsum(df_subset$Quantita)
+        df_subset$cum_sum_quantita <- as.numeric(df_subset$cum_sum_quantita)
+        abscissa <- df_subset$cum_sum_quantita
+        
+        
+        indeces <- abscissa >= l_bound & abscissa <= u_bound
+        r_abscissa <- abscissa[indeces]
+        r_prezzo <- df_subset$Prezzo[indeces]
+        
+        
+        if (sum(is.na(r_abscissa)==0)) {
+            extracted_na <-FALSE }
+        else {
+          random_indices <- sample(seq_len(total_days), 1)
+          extracted_dates[i] <- dates_vector[random_indices]
+        }
+      }
+      
+      GeneralizedCrossValidations <- numeric(length(numbasis))
+      for (i in 1:length(numbasis)){
+        basis <- create.bspline.basis(rangeval=c(l_bound, u_bound), nbasis=numbasis[i], norder=basisOrder)
+        GeneralizedCrossValidations[i] <- smooth.basis(r_abscissa, r_prezzo, basis)$gcv
+      } 
+      min_num_basis_current_moment[j]=numbasis[[which.min(GeneralizedCrossValidations)]]
+  
+  }
+   
+ frequency_table <- table(min_num_basis_current_moment)
+ print(frequency_table)
+ 
+ # Best numbasis with the highest frequency
+ max_frequency_basis_perhour[hour] <- as.numeric(names(frequency_table)[which.max(frequency_table)])
+ bestBasis_perhour[hour] <- create.bspline.basis(rangeval=c(l_bound, u_bound), nbasis=max_frequency_element, norder=basisOrder)
+ result_perhour[hour] <- smooth.basis(r_abscissa, r_prezzo, bestBasis)
+ 
+}
+
+# We can observe that the best number of basis is generally 11 for the first hours 
+# of the day, while it is 12 for the latest hours of the day.
+
+# --> Take always 11/12 basis or differentiate wrt to the hour?
+# I have implemented both approaches. To be chosen what we decide.
+
+max_frequency_basis_perhour
+best_num_basis <- names(table(max_frequency_basis_perhour))[which.max(table(max_frequency_basis_perhour))]
+
+bestBasis <- create.bspline.basis(rangeval=c(l_bound, u_bound), nbasis=best_num_basis, norder=basisOrder)
+    
+
+# Ci sono spesso problemi con sto chol :( 
+
+x11()
+plot.new()
+for(d in v) {
+  for(h in 1:24) {
+    df_subset <- df[df$Data == d & df$Ora == h, ]
+    df_subset <- df_subset[order(df_subset$Prezzo), ]
+    df_subset$cum_sum_quantita <- cumsum(df_subset$Quantita)
+    df_subset$cum_sum_quantita <- as.numeric(df_subset$cum_sum_quantita)
+    abscissa <- df_subset$cum_sum_quantita
+    indeces <- abscissa >= l_bound & abscissa <= u_bound
+    r_abscissa <- abscissa[indeces]
+    r_prezzo <- df_subset$Prezzo[indeces]
+    step_function <- stepfun(r_abscissa, c(r_prezzo[1], r_prezzo))
+    lines(r_abscissa, step_function(r_abscissa), col = "red") 
+    lines(r_abscissa, df_subset$PrezzoZonale[indeces], col = "green") 
+    result <- smooth.basis(r_abscissa, r_prezzo, bestBasis)
+    Y_hat <- eval.fd(r_abscissa, result$fd, Lfd=0)
+    points(r_abscissa, Y_hat, type = "l", col = "blue", lwd = 2)
+  }
+}
+
+
