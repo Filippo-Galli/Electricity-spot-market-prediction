@@ -554,6 +554,7 @@ df$Ora <- factor(df$Ora, levels = c("1", "2", "3", "4", "5", "6", "7", "8", "9",
 df$Data <- as.Date(df$Data)
 df$ZonaMercato <- factor(df$ZonaMercato)
 
+
 ######################### Smoothing - Prezzo #############################
 
 day <- c("2023-01-01")
@@ -562,6 +563,10 @@ zona_mercato <- c("CALA;CNOR;CSUD;NORD;SARD;SICI;SUD;AUST;COAC;CORS;FRAN;GREC;SL
 
 # subset of df for smoothing
 df_subset <- df[df$Data %in% day & df$Ora %in% hours, ]
+df_subset
+
+df_subset <- df_subset[order(df_subset$Prezzo), ]
+df_subset
 
 df_subset$cum_sum_quantita <- cumsum(df_subset$Quantita)
 df_subset$cum_sum_quantita <- as.numeric(df_subset$cum_sum_quantita)
@@ -571,17 +576,19 @@ df_subset$cum_sum_quantita <- as.numeric(df_subset$cum_sum_quantita)
 m <- 4          # spline order 
 degree <- m-1    # spline degree 
 
-nbasis <- 12
+nbasis <- 15
 abscissa <- df_subset$cum_sum_quantita
+abscissa
 # Create the basis
 #breaks = c(min(abscissa), seq(80000,95000, length.out=16), max(abscissa))
-l_bound = 80000
-u_bound = 100000
+l_bound = 1700
+u_bound = 40000
 basis <- create.bspline.basis(rangeval=c(l_bound, u_bound), nbasis=nbasis, norder=m)
 # If breaks are not provided, equally spaced knots are created
 # Evaluate the basis on the grid of abscissa
 indeces <- abscissa >= l_bound & abscissa <= u_bound
 restricted_abscissa <- abscissa[indeces]
+restricted_abscissa
 basismat <- eval.basis(restricted_abscissa, basis)
 
 # Fit via LS
@@ -590,12 +597,15 @@ est_coef = lsfit(basismat, restricted_prezzo, intercept=FALSE)$coef
 
 Xsp0 <- basismat %*% est_coef
 
+
 par(mfrow=c(1,1))
 step_function <- stepfun(restricted_abscissa, c(restricted_prezzo[1], restricted_prezzo))
 plot(step_function, verticals=T, col = "red")
 abline(v=basis$params)
 lines(restricted_abscissa, df_subset$PrezzoZonale[indeces])
 points(restricted_abscissa, Xsp0 ,type="l",col="blue",lwd=2)
+
+df_subset
 
 #se il numero di basi è troppo elevato warning:la matrice 'X' è collineare
 
@@ -609,7 +619,7 @@ zona_mercato <- c("CALA;CNOR;CSUD;NORD;SARD;SICI;SUD;AUST;COAC;CORS;FRAN;GREC;SL
 m <- 4          # spline order 
 degree <- m-1    # spline degree 
 nbasis <- 6
-l_bound <- 85000 
+l_bound <- 1000
 u_bound <- 100000
 #breaks = c(min(abscissa), seq(80000,95000, length.out=16), max(abscissa))
 #basis <- create.bspline.basis(rangeval=c(min(abscissa), max(abscissa)), nbasis=nbasis, norder=m, breaks = breaks)
@@ -619,11 +629,14 @@ v <- unique(df$Data)[1:30]
 for(d in v) {
   for(h in 1:24) {
     df_subset <- df[df$Data == d & df$Ora == h, ]
+    df_subset <- df_subset[order(df_subset$Prezzo), ]
     df_subset$cum_sum_quantita <- cumsum(df_subset$Quantita)
     df_subset$cum_sum_quantita <- as.numeric(df_subset$cum_sum_quantita)
+  
     abscissa <- df_subset$cum_sum_quantita
     indeces <- abscissa >= l_bound & abscissa <= u_bound
     r_abscissa <- abscissa[indeces]
+ 
     basismat <- eval.basis(r_abscissa, basis)
     r_prezzo <- df_subset$Prezzo[indeces]
     est_coef = lsfit(basismat, r_prezzo, intercept=FALSE)$coef
@@ -639,9 +652,11 @@ d = "2023-01-01"
 # Create an empty plot
 plot(NA, xlim = c(l_bound, u_bound), ylim = c(0, max(df$PrezzoZonale)), xlab = "Cumulative Quantity", ylab = "Price", main = "Multiple Curves", type = "n")
 
+
 # Loop through each hour
-for(h in 1:12) {
+for(h in 1:24) {
   df_subset <- df[df$Data == d & df$Ora == h, ]
+  df_subset <- df_subset[order(df_subset$Prezzo), ]
   df_subset$cum_sum_quantita <- cumsum(df_subset$Quantita)
   df_subset$cum_sum_quantita <- as.numeric(df_subset$cum_sum_quantita)
   abscissa <- df_subset$cum_sum_quantita
@@ -661,6 +676,8 @@ legend("topright", legend = c("Step Function", "PrezzoZonale", "Smooth curve"), 
 d <- c("2023-01-02")
 h <- c("2")
 df_subset <- df[df$Data == d & df$Ora == h, ]
+df_subset <- df_subset[order(df_subset$Prezzo), ]
+
 df_subset$cum_sum_quantita <- cumsum(df_subset$Quantita)
 df_subset$cum_sum_quantita <- as.numeric(df_subset$cum_sum_quantita)
 abscissa <- df_subset$cum_sum_quantita
