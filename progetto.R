@@ -559,6 +559,9 @@ day <- c("2023-01-01")
 hours <- c("18")
 zona_mercato <- c("CALA;CNOR;CSUD;NORD;SARD;SICI;SUD;AUST;COAC;CORS;FRAN;GREC;SLOV;SVIZ;MALT;COUP;MONT;")
 
+######################### Smoothing - Prezzo #############################
+######################### Prezzo by Cumulative Quantity #############################
+
 # subset of df for smoothing
 df_subset <- df[df$Data %in% day & df$Ora %in% hours, ]
 
@@ -578,12 +581,6 @@ restricted_abscissa <- restricted_data$cum_sum_quantita
 
 #Create a step function
 step_function <- stepfun(restricted_abscissa, c(restricted_prezzo[1], restricted_prezzo))
-
-# cleaning variables
-rm(day, hours, zona_mercato, df_subset, df)
-
-######################### Smoothing - Prezzo #############################
-######################### Prezzo by Cumulative Quantity #############################
 
 ########################## Test 0 - isn't monotonic ##########################
 # Set parameters
@@ -643,6 +640,10 @@ ggplot(restricted_data, aes(x = cum_sum_quantita, y = Xsp0)) +
   theme_minimal()
 
 ######################### Prezzo by Cumulative Quantity Multiple curve #############################
+# general settings
+l_bound <- 10000
+u_bound <- 35000
+
 ########################## Test 0 - isn't monotonic ##############################
 # Define the spline order and degree
 m <- 4          # spline order 
@@ -650,8 +651,6 @@ degree <- m-1    # spline degree
 
 # Define the number of basis functions and the lower and upper bounds for the data
 nbasis <- 6
-l_bound <- 10000
-u_bound <- 40000
 
 # Create a B-spline basis with the specified range, number of basis functions, and order
 basis <- create.bspline.basis(rangeval=c(l_bound, u_bound), nbasis=nbasis, norder=m)
@@ -727,9 +726,6 @@ my_list <- list()
 # Extract the first 30 unique dates from the 'Data' column of the data frame
 v <- unique(df$Data)[1:1]
 
-l_bound <- 10000
-u_bound <- 40000
-
 # Loop through each unique date and each hour of the day
 for(d in v){
   for(h in 1:24) {
@@ -766,8 +762,85 @@ for(d in v){
   }
 }
 
-#abline(v = basis$params) # Useless if we use test 1
-legend("topright", legend = c("Step Function", "PrezzoZonale", "Smooth curve"), col = c("red", "green", "blue"), lty = c(1, 1, 1), lwd = c(1, 1, 2))
+########################## Test 2 - monotonic with chosen basis - Very bad ##########################
+# Set parameters
+m <- 15        # spline order - max order possibile
+nbasis <- min(m, length(unique(df$Data)) * 2) # Adjust based on your data   # number of basis functions
+
+# Initialize an empty list to store the results
+my_list <- list()
+
+# Extract the first 30 unique dates from the 'Data' column of the data frame
+v <- unique(df$Data)[1:1]
+
+# Loop through each unique date and each hour of the day
+for(d in v){
+  for(h in 1:24) {
+    # Subset the data frame to include only rows where 'Data' matches the current date and 'Ora' matches the current hour
+    df_subset <- df[df$Data == d & df$Ora == h, ]
+    
+    # Sort the subset by 'Prezzo' (price)
+    df_subset <- df_subset[order(df_subset$Prezzo), ]
+    
+    # Calculate the cumulative sum of 'Quantita' (quantity) for each row in the subset
+    df_subset$cum_sum_quantita <- cumsum(df_subset$Quantita)
+    
+    # Ensure the cumulative sum is numeric
+    df_subset$cum_sum_quantita <- as.numeric(df_subset$cum_sum_quantita)
+
+    # Set the bounds for the restricted domain
+    restricted_data <- subset(df_subset, cum_sum_quantita >= l_bound & cum_sum_quantita <= u_bound, Prezzo > 0)
+    restricted_prezzo <- restricted_data$Prezzo
+    restricted_abscissa <- restricted_data$cum_sum_quantita
+
+    if(length(restricted_data$Data) != 0) {
+      # Create the B-spline basis
+      basis <- create.bspline.basis(rangeval=c(l_bound, u_bound), nbasis=nbasis, norder=m)
+
+      # Evaluate the basis on the restricted abscissa
+      fit <- smooth.basis(restricted_abscissa, restricted_prezzo, basis)
+
+      # Calculate the estimated 'Xsp0' values using the estimated coefficients and the B-spline basis
+      Xsp0 <- fitted(fit)
+
+      # Create a name for the current subset based on the date and hour
+      name <- paste(as.character(as.Date(d)), as.character(h))
+      
+      # Store the estimated 'Xsp0' values in the list under the current name
+      my_list[[name]] <- Xsp0
+    }
+  }
+}
+
+d <- "2023-01-01"
+
+# plot all the curve for a hour
+plot(NA, xlim = c(l_bound, u_bound), ylim = c(0, 400), xlab = "Cumulative Quantity", ylab = "Price", main = "Multiple Curves")
+for(h in 1:2) {
+  # Subset the data frame to include only rows where 'Data' matches the current date and 'Ora' matches the current hour
+  df_subset <- df[df$Data == d & df$Ora == h, ]
+  
+  # Sort the subset by 'Prezzo' (price)
+  df_subset <- df_subset[order(df_subset$Prezzo), ]
+  
+  # Calculate the cumulative sum of 'Quantita' (quantity) for each row in the subset
+  df_subset$cum_sum_quantita <- cumsum(df_subset$Quantita)
+  
+  # Ensure the cumulative sum is numeric
+  df_subset$cum_sum_quantita <- as.numeric(df_subset$cum_sum_quantita)
+
+  # Set the bounds for the restricted domain
+  restricted_data <- subset(df_subset, cum_sum_quantita >= l_bound & cum_sum_quantita <= u_bound, Prezzo > 0)
+  restricted_prezzo <- restricted_data$Prezzo
+  restricted_abscissa <- restricted_data$cum_sum_quantita
+
+  # Step function
+  step_function <- stepfun(restricted_abscissa, c(restricted_prezzo[1], restricted_prezzo))
+
+  lines(r_abscissa, step_function(r_abscissa), col = "red") # Add step function
+  lines(restricted_abscissa, restricted_data$PrezzoZonale, col = "green") # Add PrezzoZonale
+  points(restricted_abscissa, my_list[[paste(d, as.character(h))]], type = "l", col = "blue", lwd = 2) # Add points
+}
 
 ######################### Cross-Validation #############################
 ########################## Test 0 - isn't monotonic ##############################
