@@ -545,7 +545,6 @@ library(ggplot2)
 library(tidyverse)
 library(fda)
 library(lubridate)
-library(splines)
 
 ######################### Data Processing #############################
 
@@ -556,28 +555,27 @@ df$Ora <- factor(df$Ora, levels = c("1", "2", "3", "4", "5", "6", "7", "8", "9",
 df$Data <- as.Date(df$Data)
 df$ZonaMercato <- factor(df$ZonaMercato)
 
-#day <- c("2023-01-01")
-#hours <- c("18")
-#zona_mercato <- c("CALA;CNOR;CSUD;NORD;SARD;SICI;SUD;AUST;COAC;CORS;FRAN;GREC;SLOV;SVIZ;MALT;COUP;MONT;")
-
 ######################### Smoothing #############################
 
 # Set bounds
 l_bound <- 10000
-u_bound <- 35000
+u_bound <- 40000
 
-# Set the number of points for the synthetic data
-n_points <- 3000
-x_synt <- runif(n_points, l_bound, u_bound)
+# Set the number of points for the synthetic data - change this coould give error about cholesky singolarity - CAUTION
+n_points <- 60
+x_synt <- c(seq(l_bound, 15000, length.out = n_points*2), 
+            seq(15000, 30000, length.out = n_points*9), 
+            seq(30000, u_bound, length.out = n_points*2))
 
 # days to consider
-days <- unique(df$Data)[1:1]
+days <- unique(df$Data)[1:3]
 # hours to consider
-hours <- c("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24")
+#hours <- c("7", "8", "9", "10", "16", "17", "18", "19")
+hours <- c("1")
 
 # Set basis parameters
-m <- 20       # spline order - max order possibile
-nbasis <- 30   # number of basis functions
+m <- 1   # spline order - max order possibile
+nbasis <- 200   # number of basis functions
 
 # Create the B-spline basis
 basis <- create.bspline.basis(rangeval=c(l_bound, u_bound), nbasis=nbasis, norder=m)
@@ -591,7 +589,7 @@ for(day in days){
   for(hour in hours){
     # Subset the data frame to include only rows where 'Data' matches the current date and 'Ora' matches the current hour
     df_subset <- df[df$Data == day & df$Ora == hour, ]
-    
+
     # Sort the subset by 'Prezzo' (price)
     df_subset <- df_subset[order(df_subset$Prezzo), ]
     
@@ -622,44 +620,53 @@ for(day in days){
     df_iter$Data <- as.Date(day)
     df_iter$Ora <- hour
 
-      # Append the synthetic data frame for the current iteration to df_synt
+    # Append the synthetic data frame for the current iteration to df_synt
     df_synt <- rbind(df_synt, df_iter)
 
     # Evaluate the basis on the restricted abscissa
-    fit <- smooth.basis(restricted_abscissa, restricted_prezzo, basis)
+    fit <- smooth.basis(x_synt, y_synt, basis, method = "chol")
     
     # Create a name for the current subset based on the date and hour
     name <- paste(as.character(as.Date(day)), as.character(hour))
     
-    # Store the estimated 'Xsp0' values in the list under the current name
+    # Store the estimated 'fit' struct in the list under the current name
     my_list[[name]] <- fit
 
   }
 }
 
-d <- "2023-01-01"
+rm(restricted_data, restricted_prezzo, restricted_abscissa, step_function, df_iter, fit, name)
+
+# BUG: work at the best on the last day on the other the smoothed curve is shifted to the right
+day <- "2023-01-03"
 
 # plot all the curve for a hour
-plot(NA, xlim = c(l_bound, u_bound), ylim = c(0, 400), xlab = "Cumulative Quantity", ylab = "Price", main = "Multiple Curves")
-for(h in 1:1) {
+plot(NA, xlim = c(l_bound, u_bound), ylim = c(0, 400), xlab = "Cumulative Quantity", ylab = "Price", main = paste("Multiple Curves -", d))
+for(hour in hours) {
   # Subset the data frame to include only rows where 'Data' matches the current date and 'Ora' matches the current hour
-  df_subset <- df_synt[df_synt$Data == d & df_synt$Ora == h, ]
+  df_subset <- df_synt[df_synt$Data == day & df_synt$Ora == hour, ]
 
   # Sort the subset by 'cum_sum_quantita' (cumulative quantity)
   df_subset <- df_subset[order(df_subset$cum_sum_quantita), ]
 
-  # Step function
-  step_function <- stepfun(df_subset$cum_sum_quantita, c(df_subset$prezzo[1], df_subset$prezzo))
+  restricted_prezzo <- df_subset$prezzo
+  restricted_abscissa <- df_subset$cum_sum_quantita
 
-    # Add step function
-  lines(df_subset$cum_sum_quantita, step_function(df_subset$cum_sum_quantita), col = "red")
+  # Step function
+  step_function <- stepfun(restricted_abscissa, c(restricted_prezzo[1], restricted_prezzo))
+
+  # Add step function
+  lines(restricted_abscissa, step_function(df_subset$cum_sum_quantita), col = "red")
 
   # Add PrezzoZonale
-  lines(df_subset$cum_sum_quantita, df_subset$PrezzoZonale, col = "green")
+  lines(restricted_abscissa, df_subset$PrezzoZonale, col = "green")
 
   # Assuming day and hour are defined and my_list is structured correctly
-  name <- paste(as.character(as.Date(day)), as.character(hours[h]))
-  points(df_subset$cum_sum_quantita, fitted(my_list[[name]], df_subset$cum_sum_quantita) , type = "l", col = "blue", lwd = 2)
+  name <- paste(as.character(as.Date(day)), as.character(hour))
+
+  #plot the estimated curve
+  lines(restricted_abscissa, predict(my_list[[name]], restricted_abscissa), col = "blue")
+  
 }
 
 
