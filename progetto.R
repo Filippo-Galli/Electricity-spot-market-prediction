@@ -409,9 +409,6 @@ ggplot(data, aes(x = unique_points, y = mean_values, color = Ora)) +
        title = "Mean Prezzo by Normalized Cumulative Quantity") +
   theme_minimal()
 
-
-
-
 ########################## Curve of prezzo by hour #############################
 
 rm(list = ls())
@@ -535,7 +532,7 @@ ggplot(data, aes(x = unique_points, y = mean_values, color = Ora)) +
   geom_text(aes(x = 77000, y = mean_prezzo_zonale + 10, label = "mean PrezzoZonale"), 
             color = "black", size = 3)
 
-######################### Smoothing and gcv #################
+######################## Smoothing and gcv #################
 rm(list = ls())
 
 ######################### Library #############################
@@ -549,13 +546,12 @@ library(lubridate)
 ######################### Data Processing #############################
 
 # Load the data from .csv file
-df <- read.csv("csv/2023-01-01_to_2023-12-31.csv")
+df <- read.csv("csv/2023-01-01_to_2023-12-31OFF.csv")
 
 df$Ora <- factor(df$Ora, levels = c("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24"))
 df$Data <- as.Date(df$Data)
-df$ZonaMercato <- factor(df$ZonaMercato)
 
-######################### Smoothing #############################
+######################### Creating Synthetic Data #############################
 
 # Set bounds
 l_bound <- 10000
@@ -568,263 +564,184 @@ x_synt <- c(seq(l_bound, 15000, length.out = n_points*2),
             seq(30000, u_bound, length.out = n_points*2))
 
 # days to consider
-days <- unique(df$Data)[1:3]
+days <- unique(df$Data)[1:5]
 # hours to consider
-#hours <- c("7", "8", "9", "10", "16", "17", "18", "19")
-hours <- c("1")
-
-# Set basis parameters
-m <- 1   # spline order - max order possibile
-nbasis <- 200   # number of basis functions
-
-# Create the B-spline basis
-basis <- create.bspline.basis(rangeval=c(l_bound, u_bound), nbasis=nbasis, norder=m)
+hours <- c("7", "8", "9", "10", "16", "17", "18", "19")
 
 # Initialize an empty data frame to store the synthetic data
 df_synt <- data.frame()
-# Initialize an empty list to store fitted values
-my_list <- list()
 
+# Create synthetic data for each day and hour
 for(day in days){
   for(hour in hours){
     # Subset the data frame to include only rows where 'Data' matches the current date and 'Ora' matches the current hour
     df_subset <- df[df$Data == day & df$Ora == hour, ]
 
-    # Sort the subset by 'Prezzo' (price)
-    df_subset <- df_subset[order(df_subset$Prezzo), ]
-    
-    # Calculate the cumulative sum of 'Quantita' (quantity) for each row in the subset
-    df_subset$cum_sum_quantita <- cumsum(df_subset$Quantita)
-    
-    # Ensure the cumulative sum is numeric
-    df_subset$cum_sum_quantita <- as.numeric(df_subset$cum_sum_quantita)
+    # Check if the subset is not empty
+    if(length(df_subset) != 0){
+      # Sort the subset by 'Prezzo' (price)
+      df_subset <- df_subset[order(df_subset$Prezzo), ]
+      
+      # Calculate the cumulative sum of 'Quantita' (quantity) for each row in the subset
+      df_subset$cum_sum_quantita <- cumsum(df_subset$Quantita)
+      
+      # Ensure the cumulative sum is numeric
+      df_subset$cum_sum_quantita <- as.numeric(df_subset$cum_sum_quantita)
 
-    # Set the bounds for the restricted domain
-    restricted_data <- subset(df_subset, cum_sum_quantita >= l_bound & cum_sum_quantita <= u_bound, Prezzo > 0)
-    restricted_prezzo <- restricted_data$Prezzo
-    restricted_abscissa <- restricted_data$cum_sum_quantita
+      # Set the bounds for the restricted domain
+      restricted_data <- subset(df_subset, cum_sum_quantita >= l_bound & cum_sum_quantita <= u_bound, Prezzo > 0)
+      restricted_prezzo <- restricted_data$Prezzo
+      restricted_abscissa <- restricted_data$cum_sum_quantita
 
-    # Create a step function
-    step_function <- stepfun(restricted_abscissa, c(restricted_prezzo[1], restricted_prezzo))
+      # Create a step function
+      step_function <- stepfun(restricted_abscissa, c(restricted_prezzo[1], restricted_prezzo))
 
-    # Sample synthetic data from the step function
-    y_synt <- step_function(x_synt)
+      # Sample synthetic data from the step function
+      y_synt <- step_function(x_synt)
 
-    # Create a synthetic data frame
-    df_iter <- data.frame(cum_sum_quantita = x_synt, prezzo = y_synt)
+      # Create a synthetic data frame
+      df_iter <- data.frame(cum_sum_quantita = x_synt, prezzo = y_synt)
 
-    # Add the 'PrezzoZonale' column to the synthetic data frame
-    df_iter$PrezzoZonale <- mean(restricted_data$PrezzoZonale)
+      # Add the 'PrezzoZonale' column to the synthetic data frame
+      df_iter$PrezzoZonale <- mean(restricted_data$PrezzoZonale)
 
-    # Add the 'Data' and 'Ora' columns to the synthetic data frame
-    df_iter$Data <- as.Date(day)
-    df_iter$Ora <- hour
+      # Add the 'Data' and 'Ora' columns to the synthetic data frame
+      df_iter$Data <- as.Date(day)
+      df_iter$Ora <- hour
 
-    # Append the synthetic data frame for the current iteration to df_synt
-    df_synt <- rbind(df_synt, df_iter)
-
-    # Evaluate the basis on the restricted abscissa
-    fit <- smooth.basis(x_synt, y_synt, basis, method = "chol")
-    
-    # Create a name for the current subset based on the date and hour
-    name <- paste(as.character(as.Date(day)), as.character(hour))
-    
-    # Store the estimated 'fit' struct in the list under the current name
-    my_list[[name]] <- fit
-
+      # Append the synthetic data frame for the current iteration to df_synt
+      df_synt <- rbind(df_synt, df_iter)
+    }
   }
 }
 
-rm(restricted_data, restricted_prezzo, restricted_abscissa, step_function, df_iter, fit, name)
-
-# BUG: work at the best on the last day on the other the smoothed curve is shifted to the right
-day <- "2023-01-03"
-
-# plot all the curve for a hour
-plot(NA, xlim = c(l_bound, u_bound), ylim = c(0, 400), xlab = "Cumulative Quantity", ylab = "Price", main = paste("Multiple Curves -", d))
-for(hour in hours) {
-  # Subset the data frame to include only rows where 'Data' matches the current date and 'Ora' matches the current hour
-  df_subset <- df_synt[df_synt$Data == day & df_synt$Ora == hour, ]
-
-  # Sort the subset by 'cum_sum_quantita' (cumulative quantity)
-  df_subset <- df_subset[order(df_subset$cum_sum_quantita), ]
-
-  restricted_prezzo <- df_subset$prezzo
-  restricted_abscissa <- df_subset$cum_sum_quantita
-
-  # Step function
-  step_function <- stepfun(restricted_abscissa, c(restricted_prezzo[1], restricted_prezzo))
-
-  # Add step function
-  lines(restricted_abscissa, step_function(df_subset$cum_sum_quantita), col = "red")
-
-  # Add PrezzoZonale
-  lines(restricted_abscissa, df_subset$PrezzoZonale, col = "green")
-
-  # Assuming day and hour are defined and my_list is structured correctly
-  name <- paste(as.character(as.Date(day)), as.character(hour))
-
-  #plot the estimated curve
-  lines(restricted_abscissa, predict(my_list[[name]], restricted_abscissa), col = "blue")
-  
-}
-
+rm(restricted_data, restricted_prezzo, restricted_abscissa, step_function, df_iter,  x_synt, y_synt, df_subset, day, hour, n_points)
 
 ######################### Cross-Validation #############################
-########################## Test 0 - isn't monotonic ##############################
-# generalized cross-validation
-d <- c("2023-01-02")
-h <- c("2")
-df_subset <- df[df$Data == d & df$Ora == h, ]
-df_subset <- df_subset[order(df_subset$Prezzo), ]
 
-df_subset$cum_sum_quantita <- cumsum(df_subset$Quantita)
-df_subset$cum_sum_quantita <- as.numeric(df_subset$cum_sum_quantita)
-abscissa <- df_subset$cum_sum_quantita
-indeces <- abscissa >= l_bound & abscissa <= u_bound
-r_abscissa <- abscissa[indeces]
-r_prezzo <- df_subset$Prezzo[indeces]
-m <- 4
-nbasis <- 5:12
-gcv <- numeric(length(nbasis))
-for (i in 1:length(nbasis)){
-  basis <- create.bspline.basis(c(l_bound, u_bound), nbasis[i], m)
-  gcv[i] <- smooth.basis(r_abscissa, r_prezzo, basis)$gcv
-}
-par(mfrow=c(1,1))
-plot(nbasis,gcv)
-nbasis[which.min(gcv)]
-abline(v = nbasis[which.min(gcv)], col = 2)
-#chol fact error if nbasis is too high
+num_dates_extract_to_gcv <- 3
+extracted_dates <- as.Date(sample(days, num_dates_extract_to_gcv))
 
-# Pippo -- If we use smooth.spline we don't need to do this
-
-# ALE - - - - generalized cross-validation
-
-# Idea (just my empirical idea, to be asked to GUILLAUME)
-# To determine the number of basis, since we must have the same
-# for every day (it is not clear to me if we have this restriction
-# also for every hour, since theoretically what hour we would know
-# to predict), do gcv on every date and look at the num_basis
-# that would be chosen the higher number of times
-# For computational reasons, I'll just extract randomly the dates form the range
-
-# Q. Can we choose a different num of basis for each hour? (IMO YES)
-# As much as I know, the bid takes place the day before for every hour of the day
-# after. So we already know the hour we're looking to predict.
-
-# Other criticality. It is not so clear to me how to select in a NON empirical way
-# the restricted domain bounds
-
-l_bound <- 1000
-u_bound <- 40000
-
-d <- c("2023-01-02")
-
-start_date <- as.Date("2023-01-01")
-end_date <- as.Date("2023-02-01")
-total_days <- as.numeric(difftime(end_date, start_date, units = "days"))
-dates_vector <- seq(start_date, end_date, by = "day")
-num_dates_extract_to_gcv <- 5
-random_indices <- sample(seq_len(total_days), num_dates_extract_to_gcv)
-extracted_dates <- dates_vector[random_indices]
-extracted_dates
-df
-
-min_num_basis_current_moment <- numeric(length(num_dates_extract_to_gcv))
-
-basisOrder <- 4
-basis_min <- 4
-basis_max <- 12  # More than this we have matrix singularity
-numbasis <- seq(basis_min, basis_max, 1)
-numbasis
+# Set basis parameters to test
+basisOrder <- 1
+basis_min <- 100
+basis_max <- 200  
+numbasis <- seq(basis_min, basis_max, 25)
 
 # All this should be done for every hour
+best_basis_hour <- list()
 
-max_frequency_basis_perhour <-numeric(24)
-bestBasis_perhour <-numeric(24)
-result_perhour <-numeric(24)
+# For the extracted dates we will find the best number of basis for running on each hour
+df_basis <- data.frame()
+for(day in extracted_dates) {
+  for (hour in hours) {
+    r_abscissa <- df_synt[df_synt$Data == day & df_synt$Ora == hour, ]$cum_sum_quantita
+    r_prezzo <- df_synt[df_synt$Data == day & df_synt$Ora == hour, ]$prezzo
 
-for (hour in 1:24) {
-  
-  for (j in 1:num_dates_extract_to_gcv) {
-      
-      extracted_na <- TRUE
-      
-      while (extracted_na) {
-        df_subset <- df[df$Data == extracted_dates[i] & df$Ora == hour, ]
-        df_subset <- df_subset[order(df_subset$Prezzo), ]
-        
-        df_subset$cum_sum_quantita <- cumsum(df_subset$Quantita)
-        df_subset$cum_sum_quantita <- as.numeric(df_subset$cum_sum_quantita)
-        abscissa <- df_subset$cum_sum_quantita
-        
-        
-        indeces <- abscissa >= l_bound & abscissa <= u_bound
-        r_abscissa <- abscissa[indeces]
-        r_prezzo <- df_subset$Prezzo[indeces]
-        
-        
-        if (sum(is.na(r_abscissa)==0)) {
-            extracted_na <-FALSE }
-        else {
-          random_indices <- sample(seq_len(total_days), 1)
-          extracted_dates[i] <- dates_vector[random_indices]
-        }
-      }
+    # check if the our exists
+    if(length(r_abscissa) > 0 & length(r_prezzo) > 0){
+    
+      placeholder <- paste(as.character(as.Date(day)), as.character(hour))
+      print(placeholder)
       
       GeneralizedCrossValidations <- numeric(length(numbasis))
+      
       for (i in 1:length(numbasis)){
         basis <- create.bspline.basis(rangeval=c(l_bound, u_bound), nbasis=numbasis[i], norder=basisOrder)
-        GeneralizedCrossValidations[i] <- smooth.basis(r_abscissa, r_prezzo, basis)$gcv
-      } 
-      min_num_basis_current_moment[j]=numbasis[[which.min(GeneralizedCrossValidations)]]
-  
-  }
-   
- frequency_table <- table(min_num_basis_current_moment)
- print(frequency_table)
- 
- # Best numbasis with the highest frequency
- max_frequency_basis_perhour[hour] <- as.numeric(names(frequency_table)[which.max(frequency_table)])
- bestBasis_perhour[hour] <- create.bspline.basis(rangeval=c(l_bound, u_bound), nbasis=max_frequency_element, norder=basisOrder)
- result_perhour[hour] <- smooth.basis(r_abscissa, r_prezzo, bestBasis)
- 
-}
+        gcv <- smooth.basis(r_abscissa, r_prezzo, basis)$gcv
 
-# We can observe that the best number of basis is generally 11 for the first hours 
-# of the day, while it is 12 for the latest hours of the day.
+        df_temp <- data.frame(Data = as.Date(day), Ora = hour, nbasis = numbasis[i], gcv = gcv)
 
-# --> Take always 11/12 basis or differentiate wrt to the hour?
-# I have implemented both approaches. To be chosen what we decide.
-
-max_frequency_basis_perhour
-best_num_basis <- names(table(max_frequency_basis_perhour))[which.max(table(max_frequency_basis_perhour))]
-
-bestBasis <- create.bspline.basis(rangeval=c(l_bound, u_bound), nbasis=best_num_basis, norder=basisOrder)
-    
-
-# Ci sono spesso problemi con sto chol :( 
-
-x11()
-plot.new()
-for(d in v) {
-  for(h in 1:24) {
-    df_subset <- df[df$Data == d & df$Ora == h, ]
-    df_subset <- df_subset[order(df_subset$Prezzo), ]
-    df_subset$cum_sum_quantita <- cumsum(df_subset$Quantita)
-    df_subset$cum_sum_quantita <- as.numeric(df_subset$cum_sum_quantita)
-    abscissa <- df_subset$cum_sum_quantita
-    indeces <- abscissa >= l_bound & abscissa <= u_bound
-    r_abscissa <- abscissa[indeces]
-    r_prezzo <- df_subset$Prezzo[indeces]
-    step_function <- stepfun(r_abscissa, c(r_prezzo[1], r_prezzo))
-    lines(r_abscissa, step_function(r_abscissa), col = "red") 
-    lines(r_abscissa, df_subset$PrezzoZonale[indeces], col = "green") 
-    result <- smooth.basis(r_abscissa, r_prezzo, bestBasis)
-    Y_hat <- eval.fd(r_abscissa, result$fd, Lfd=0)
-    points(r_abscissa, Y_hat, type = "l", col = "blue", lwd = 2)
+        df_basis <- rbind(df_basis, df_temp)
+      }       
+    } 
   }
 }
 
+# Find the min gcv for each day for each hour and delete other entries
+df_basis <- df_basis %>%
+                group_by(Data, Ora) %>%
+                slice_min(gcv)
 
+# Selecting best basis for each hour
+for(hour in hours){
+  # Extract a specific hour
+  filtered_df <- df_basis[df_basis$Ora == hour, ]
+
+  # Frequency table
+  frequency_table <- table(filtered_df$nbasis)
+
+  # Find the best number of basis
+  best_basis_hour[[hour]] <- names(frequency_table)[which.max(frequency_table)]
+}
+
+# Cleaning variables
+rm(df_basis, GeneralizedCrossValidations, basis, gcv, frequency_table, filtered_df, placeholder, day, hour, i, 
+   num_dates_extract_to_gcv, extracted_dates, basis_min, basis_max, numbasis, r_abscissa, r_prezzo, df_temp)
+
+######################### Best Smoothing #############################
+
+list_basis <- list()
+list_smooth <- list()
+
+# Create basis for each hour
+for(hour in hours){
+  # Create the B-spline basis
+  list_basis[[hour]] <- create.bspline.basis(rangeval=c(l_bound, u_bound), nbasis=as.numeric(best_basis_hour[[hour]]), norder=basisOrder)
+}
+
+# Create the smooth object for each day and hour
+for(day in days){
+  for(hour in hours){
+    y_synt <- df_synt[df_synt$Data == day & df_synt$Ora == hour, ]$prezzo
+    x_synt <- df_synt[df_synt$Data == day & df_synt$Ora == hour, ]$cum_sum_quantita
+
+    # Check if the hour exists
+    if(length(y_synt) > 0 & length(x_synt) > 0){
+      # Evaluate the basis on the restricted abscissa
+      fit <- smooth.basis(x_synt, y_synt, list_basis[[hour]], method = "chol")
+
+      # Create a name for the current subset based on the date and hour
+      name <- paste(as.character(as.Date(day)), as.character(hour))
+
+      # Store the estimated 'fit' struct in the list under the current name
+      list_smooth[[name]] <- fit
+    }
+  }
+}
+
+# Day to print
+day <- "2023-01-05"
+
+# plot all the curve for a hour
+if(day %in% days){
+  plot(NA, xlim = c(l_bound, u_bound), ylim = c(0, 400), xlab = "Cumulative Quantity", ylab = "Price", main = paste("Multiple Curves -", day))
+  for(hour in hours) {
+    # Subset the data frame to include only rows where 'Data' matches the current date and 'Ora' matches the current hour
+    df_subset <- df_synt[df_synt$Data == day & df_synt$Ora == hour, ]
+    restricted_prezzo <- df_subset$prezzo
+    restricted_abscissa <- df_subset$cum_sum_quantita
+
+    if(length(restricted_prezzo) > 0 & length(restricted_abscissa) > 0 ){
+      # Sort the subset by 'cum_sum_quantita' (cumulative quantity)
+      df_subset <- df_subset[order(df_subset$cum_sum_quantita), ]
+
+      # Step function
+      step_function <- stepfun(restricted_abscissa, c(restricted_prezzo[1], restricted_prezzo))
+
+      # Add step function
+      lines(restricted_abscissa, step_function(df_subset$cum_sum_quantita), col = "red")
+
+      # Add PrezzoZonale
+      lines(restricted_abscissa, df_subset$PrezzoZonale, col = "green")
+
+      # Assuming day and hour are defined and my_list is structured correctly
+      name <- paste(as.character(as.Date(day)), as.character(hour))
+
+      #plot the estimated curve
+      lines(restricted_abscissa, predict(list_smooth[[name]], restricted_abscissa), col = "blue")
+    }
+  }
+} else{
+  print("Day not found in the data")
+}
