@@ -564,22 +564,27 @@ x_synt <- c(seq(l_bound, 15000, length.out = n_points*2),
             seq(30000, u_bound, length.out = n_points*2))
 
 # days to consider
-days <- unique(df$Data)[1:5]
+#days <- unique(df$Data)[1:5]
+days <- unique(df$Data)
+
 # hours to consider
 hours <- c("7", "8", "9", "10", "16", "17", "18", "19")
 
 # Initialize an empty data frame to store the synthetic data
 df_synt <- data.frame()
+iter <- 1
+all_dates <- length(days)
 
 # Create synthetic data for each day and hour
 for(day in days){
+  print(paste("Processing data for", as.Date(day), " - ", iter/all_dates*100, " %"))
   for(hour in hours){
     # Subset the data frame to include only rows where 'Data' matches the current date and 'Ora' matches the current hour
     df_subset <- df[df$Data == day & df$Ora == hour, ]
-
+    
     # Check if the subset is not empty
-    if(length(df_subset) != 0){
-      # Sort the subset by 'Prezzo' (price)
+    if(length(df_subset$Data) != 0 ){
+       # Sort the subset by 'Prezzo' (price)
       df_subset <- df_subset[order(df_subset$Prezzo), ]
       
       # Calculate the cumulative sum of 'Quantita' (quantity) for each row in the subset
@@ -613,26 +618,29 @@ for(day in days){
       df_synt <- rbind(df_synt, df_iter)
     }
   }
+  iter <- iter + 1
 }
 
 rm(restricted_data, restricted_prezzo, restricted_abscissa, step_function, df_iter,  x_synt, y_synt, df_subset, day, hour, n_points)
 
 ######################### Cross-Validation #############################
 
-num_dates_extract_to_gcv <- 3
+num_dates_extract_to_gcv <- length(days)
 extracted_dates <- as.Date(sample(days, num_dates_extract_to_gcv))
 
 # Set basis parameters to test
 basisOrder <- 1
 basis_min <- 100
 basis_max <- 200  
-numbasis <- seq(basis_min, basis_max, 25)
+numbasis <- seq(basis_min, basis_max, 10)
 
 # All this should be done for every hour
 best_basis_hour <- list()
 
 # For the extracted dates we will find the best number of basis for running on each hour
 df_basis <- data.frame()
+iter <- 1
+all_dates <- length(extracted_dates)*length(hours)
 for(day in extracted_dates) {
   for (hour in hours) {
     r_abscissa <- df_synt[df_synt$Data == day & df_synt$Ora == hour, ]$cum_sum_quantita
@@ -641,7 +649,7 @@ for(day in extracted_dates) {
     # check if the our exists
     if(length(r_abscissa) > 0 & length(r_prezzo) > 0){
     
-      placeholder <- paste(as.character(as.Date(day)), as.character(hour))
+      placeholder <- paste(as.character(as.Date(day)), as.character(hour), " - ", iter/all_dates*100, " %")
       print(placeholder)
       
       GeneralizedCrossValidations <- numeric(length(numbasis))
@@ -654,7 +662,8 @@ for(day in extracted_dates) {
 
         df_basis <- rbind(df_basis, df_temp)
       }       
-    } 
+    }
+    iter <- iter + 1   
   }
 }
 
@@ -675,11 +684,17 @@ for(hour in hours){
   best_basis_hour[[hour]] <- names(frequency_table)[which.max(frequency_table)]
 }
 
+# Save the list to a file
+save(best_basis_hour, file = "best_basis.RData")
+
 # Cleaning variables
 rm(df_basis, GeneralizedCrossValidations, basis, gcv, frequency_table, filtered_df, placeholder, day, hour, i, 
    num_dates_extract_to_gcv, extracted_dates, basis_min, basis_max, numbasis, r_abscissa, r_prezzo, df_temp)
 
 ######################### Best Smoothing #############################
+
+# Load the list from the file
+load("best_basis.RData")
 
 list_basis <- list()
 list_smooth <- list()
@@ -715,6 +730,8 @@ day <- "2023-01-05"
 
 # plot all the curve for a hour
 if(day %in% days){
+
+  # Initialize the plot
   plot(NA, xlim = c(l_bound, u_bound), ylim = c(0, 400), xlab = "Cumulative Quantity", ylab = "Price", main = paste("Multiple Curves -", day))
   for(hour in hours) {
     # Subset the data frame to include only rows where 'Data' matches the current date and 'Ora' matches the current hour
