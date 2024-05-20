@@ -685,7 +685,7 @@ for(hour in hours){
 }
 
 # Save the list to a file
-save(best_basis_hour, file = "best_basis.RData")
+save(best_basis_hour, file = "saved_data/best_basis.RData")
 
 # Cleaning variables
 rm(df_basis, GeneralizedCrossValidations, basis, gcv, frequency_table, filtered_df, placeholder, day, hour, i, 
@@ -694,10 +694,11 @@ rm(df_basis, GeneralizedCrossValidations, basis, gcv, frequency_table, filtered_
 ######################### Best Smoothing #############################
 
 # Load the list from the file
-load("best_basis.RData")
+load("saved_data/best_basis.RData")
 
 list_basis <- list()
 list_smooth <- list()
+basisOrder <- 1
 
 # Create basis for each hour
 for(hour in hours){
@@ -706,7 +707,13 @@ for(hour in hours){
 }
 
 # Create the smooth object for each day and hour
+# TODO: This part is very slow, it can be optimized
+# Smooth.basis() could work with matrix and so we can avoid the loop and give weight to our fitting data
+iter <- 1
+all_dates <- length(days)
 for(day in days){
+  placeholder <- paste(as.character(as.Date(day)), " - ", iter/all_dates*100, " %")
+  print(placeholder)
   for(hour in hours){
     y_synt <- df_synt[df_synt$Data == day & df_synt$Ora == hour, ]$prezzo
     x_synt <- df_synt[df_synt$Data == day & df_synt$Ora == hour, ]$cum_sum_quantita
@@ -723,7 +730,10 @@ for(day in days){
       list_smooth[[name]] <- fit
     }
   }
+  iter <- iter + 1
 }
+
+save(list_smooth, file = "saved_data/list_smooth.RData")
 
 # Day to print
 day <- "2023-01-05"
@@ -762,3 +772,4 @@ if(day %in% days){
 } else{
   print("Day not found in the data")
 }
+
