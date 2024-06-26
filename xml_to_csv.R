@@ -107,8 +107,11 @@ df_multizone_unified_BID <- subset(df_multizone[df_multizone$Tipo == 'BID',], se
   #df <- df[!df$Tipo != correct_tipo, ]
   #table(df$Tipo)
 
+dftot <- df
+
 # dropping column with only one value
 df <- subset(df, select = -c(Tipo, ZonaMercato, Mercato, element))
+df <- subset(df, select = -c(Mercato, element))
 
 rm(df_multizone)
 
@@ -150,3 +153,4 @@ df <- na.omit(df)
 Tipo <- 'BID' #or BID
 file_name_csv <- paste0("csv/",date_range[1],"_to_",date_range[length(date_range)],Tipo,".csv")
 write.csv(df, file_name_csv , row.names = FALSE)
+write.csv(df, "MGP_2023.csv" , row.names = FALSE)
