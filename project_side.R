@@ -28,7 +28,7 @@ df.bid <- df[which(df$Tipo=='BID'),1:6]
 
 ######################### ZonaMercato inspection #########################
 
-this.df <- df.bid
+this.df <- df.off
 
 sort(table(this.df$ZonaMercato), decreasing=T)
 
@@ -62,7 +62,7 @@ zone <- c(zone.full, zone.nord, zone.sud, zone.no.cors, zone.no.sici.malt.cala)
 
 ######################### Data loss ######################################
 
-this.df <- df
+this.df <- df.off
 
 # group by selected zone and count null values (should be zero for all)
 null.prices <- this.df %>%
@@ -178,15 +178,129 @@ ggplot(df_boxplot, aes(x = Month, y = Prezzo, fill = color_value)) +
                       guide = guide_colorbar(title = "median_Prezzo")) + # Modifica il titolo della legenda# Green to red gradient
   theme_minimal()
 
-#############################
+############################## Curves (STEP) #####################################
 
+# Group by day and hour, then sort each group by prezzo
+sorted.df.off <- df.off %>%
+  group_by(Data, Ora) %>%
+  arrange(Data, Ora, Prezzo)
+sorted.df.bid <- df.bid %>%
+  group_by(Data, Ora) %>%
+  arrange(Data, Ora, desc(Prezzo))
 
+# calculate cumulative sums
+cumulative.df.off <- sorted.df.off %>%
+  mutate(Quantita.sum = cumsum(Quantita))
+cumulative.df.bid <- sorted.df.bid %>%
+  mutate(Quantita.sum = cumsum(Quantita))
 
+# data sequence
+start.date <- as.Date("2023-01-01")
+end.date <- as.Date("2023-12-31")
+date.sequence <- seq.Date(start.date, end.date, by = "day")
 
+# quantita, prezzo range to display
+quantity.range <- c(10000, 50000)  
+prezzo.range <- c(0, 400)
 
+restricted.plot.off <- list()
+restricted.plot.bid <- list()
+for(i in 1:365){
+  
+  restricted.plot.off[[i]] <- cumulative.df.off %>%
+  filter( Data == date.sequence[i] &
+          Quantita.sum >= quantity.range[1] & Quantita.sum <= quantity.range[2] & 
+          Prezzo >= prezzo.range[1] & Prezzo <= prezzo.range[2])
+  
+  restricted.plot.bid[[i]] <- cumulative.df.bid %>%
+    filter( Data == date.sequence[i] &
+              Quantita.sum >= quantity.range[1] & Quantita.sum <= quantity.range[2] & 
+              Prezzo >= prezzo.range[1] & Prezzo <= prezzo.range[2])
 
+}
+names(restricted.plot.off) <- date.sequence
+names(restricted.plot.bid) <- date.sequence
 
+ggplot(restricted.plot.bid[[24]], aes(x = Quantita.sum, y = Prezzo, color = as.factor(Ora))) +
+  geom_step() +
+  labs(title = paste("Cumulative Sum of Quantity vs. Prezzo for ", date.sequence[24]),
+       x = "Cumulative Quantity",
+       y = "Prezzo",
+       color = "Hour") +
+  theme_minimal()
 
+############################## Market Clearing Price #############################
 
+day <- as.character(date.sequence[1])
+hour <- 1
 
+mcp.df <- read.table("MarketCoupling.txt")
+mcp.df <- mcp.df[,-5]
+mcp.df <- mcp.df[which(as.Date(mcp$Data) %in% date.sequence),]
 
+mcq.df <- mcp.df %>%
+  group_by(Data, Ora) %>%
+  summarise(delta = sum(FlussoImport - FlussoExport)) %>%
+  ungroup()
+
+delta.mcq <- mcq.df[mcq.df$Data==day & mcq.df$Ora = hour,3]
+
+off <- restricted.plot.off[[day]][which(restricted.plot.off[[day]]$Ora %in% hour),c(2,5,6)]
+bid <- restricted.plot.bid[[day]][which(restricted.plot.bid[[day]]$Ora %in% hour),c(2,5,6)]
+off.shift <- off
+off.shift$Quantita.sum <- off.shift$Quantita.sum + rep(as.numeric(delta.mcq),nrow(off.shift))
+
+off$Type <- 'Supply'
+off.shift$Type <- 'SupplyS'
+bid$Type <- 'Demand'
+
+off.bid <- rbind(off,off.shift, bid)
+off.bid$Type.Ora <- interaction(off.bid$Type, off.bid$Ora)
+
+# plot of curves(off-bid) selected
+plot <- ggplot(off.bid, aes(x = Quantita.sum, y = Prezzo, color = Type.Ora, linetype = Type)) +
+  geom_step() +
+  labs(title = paste("Cumulative Sum of Quantity vs. Prezzo for ", date.sequence[1]),
+       x = "Cumulative Quantity",
+       y = "Prezzo",
+       color = "Type") +
+  theme_minimal() +
+  scale_linetype_manual(values = c("Supply" = "solid", "Demand" = "solid", "SupplyS" = "dashed")) +
+  scale_color_manual(values = c("Supply.1" = "red", "Demand.1" = "blue", "SupplyS.1" = "red")) +
+  guides(linetype='none')
+
+# Function to find intersections
+find_intersections <- function(df1, df2) {
+  intersections <- data.frame()
+  for (i in 1:(nrow(df1) - 1)) {
+    for (j in 1:(nrow(df2) - 1)) {
+      # Check if lines (x1, y1)-(x2, y2) and (x3, y3)-(x4, y4) intersect
+      a1 <- df1$Prezzo[i+1] - df1$Prezzo[i]
+      b1 <- df1$Quantita.sum[i] - df1$Quantita.sum[i+1]
+      c1 <- a1 * df1$Quantita.sum[i] + b1 * df1$Prezzo[i]
+      
+      a2 <- df2$Prezzo[j+1] - df2$Prezzo[j]
+      b2 <- df2$Quantita.sum[j] - df2$Quantita.sum[j+1]
+      c2 <- a2 * df2$Quantita.sum[j] + b2 * df2$Prezzo[j]
+      
+      det <- a1 * b2 - a2 * b1
+      if (det != 0) {
+        x <- (b2 * c1 - b1 * c2) / det
+        y <- (a1 * c2 - a2 * c1) / det
+        # Check if intersection point (x, y) is within line segments
+        if (x >= min(df1$Quantita.sum[i], df1$Quantita.sum[i+1]) && 
+            x <= max(df1$Quantita.sum[i], df1$Quantita.sum[i+1]) && 
+            x >= min(df2$Quantita.sum[j], df2$Quantita.sum[j+1]) && 
+            x <= max(df2$Quantita.sum[j], df2$Quantita.sum[j+1])) {
+          intersections <- rbind(intersections, data.frame(x = x, y = y))
+        }
+      }
+    }
+  }
+  return(intersections)
+}
+
+mcp <- find_intersections(off.shift,bid)
+plot + geom_point(data = mcpx, aes(x = x, y = y), color = "black", size = 3, inherit.aes = FALSE)
+
+########################## Smoothing ###################################################
