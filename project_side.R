@@ -303,4 +303,142 @@ find_intersections <- function(df1, df2) {
 mcp <- find_intersections(off.shift,bid)
 plot + geom_point(data = mcpx, aes(x = x, y = y), color = "black", size = 3, inherit.aes = FALSE)
 
-########################## Smoothing ###################################################
+################################### Smoothing ###################################################
+
+library(fda)
+
+nbasis.gcv <- list()
+
+for(day in as.character(date.sequence)){
+  
+  day.list <- list()
+  
+  for(hour in 1:24){
+    
+    this.df <- restricted.plot.off[[day]][which(restricted.plot.off[[day]]$Ora %in% hour),c(2,5,6)]
+    
+    # original data
+    abscissa <- this.df$Quantita.sum
+    ordinate <- this.df$Prezzo
+    
+    if(length(abscissa) > 0 & length(ordinate) > 0){
+      # step function -> syntetic point -> smoothing
+      step.function <- stepfun(abscissa,c(ordinate[1],ordinate))
+      x.synt <- seq(quantity.range[1],quantity.range[2],by = 100)
+      y.synt <- step.function(x.synt)
+      order <- 1
+      nbasis <- seq(100, 400, by = 10)
+      gcv <- rep(NA,length(nbasis))
+      
+      for (i in 1:length(nbasis)){
+        basis <- create.bspline.basis(rangeval=quantity.range, nbasis=nbasis[i], norder=order)
+        gcv[i] <- smooth.basis(x.synt, y.synt, basis)$gcv
+      }
+      
+      day.list[[as.character(hour)]] <- nbasis[which.min(gcv)]
+      
+    } else{
+      day.list[[as.character(hour)]] <- NA
+    }
+    
+    
+  }
+  
+  nbasis.gcv[[day]] <- day.list
+  
+}
+
+nbasis.gcv <- list()
+
+for(day in as.character(date.sequence)){
+  
+  day.list <- list()
+  
+  for(hour in 1:24){
+    
+    this.df <- restricted.plot.off[[day]][which(restricted.plot.off[[day]]$Ora %in% hour),c(2,5,6)]
+    
+    # original data
+    abscissa <- this.df$Quantita.sum
+    ordinate <- this.df$Prezzo
+    
+    if(length(abscissa) > 0 & length(ordinate) > 0){
+      day.list[[as.character(hour)]] <- 400
+      
+    } else{
+      day.list[[as.character(hour)]] <- NA
+    }
+    
+    
+  }
+  
+  nbasis.gcv[[day]] <- day.list
+  
+}
+
+day <- "2023-06-01"
+
+plot(NA, NA, xlim = quantity.range, ylim = prezzo.range, xlab = "Quantita", ylab = "Prezzo", main = paste("Smoothed of",day,sep=" "))
+
+for(hour in 1:24){
+  this.df <- restricted.plot.off[[day]][which(restricted.plot.off[[day]]$Ora %in% hour),c(2,5,6)] %>% group_by(Ora)
+  
+  # original data
+  abscissa <- this.df$Quantita.sum
+  ordinate <- this.df$Prezzo
+  
+  if(length(abscissa) > 0 & length(ordinate) > 0){
+  # step function -> syntetic point -> smoothing
+  step.function <- stepfun(abscissa,c(ordinate[1],ordinate))
+  x.synt <- seq(quantity.range[1],quantity.range[2],by = 50)
+  y.synt <- step.function(x.synt)
+  
+  order <- 1
+  basis <- create.bspline.basis(rangeval=quantity.range, nbasis=801, norder=order)
+  Xsp <- smooth.basis(argvals=x.synt, y=y.synt, fdParobj=basis)
+  Xsp0bis <- eval.fd(abscissa, Xsp$fd)
+  points(abscissa,Xsp0bis,type='s', col = hour)
+  }
+  
+}
+
+this.df <- restricted.plot.off[[day]][which(restricted.plot.off[[day]]$Ora %in% hour),c(2,5,6)] %>% group_by(Ora)
+
+# original data
+abscissa <- this.df$Quantita.sum
+ordinate <- this.df$Prezzo
+
+# step function -> syntetic point -> smoothing
+step.function <- stepfun(abscissa,c(ordinate[1],ordinate))
+x.synt <- seq(quantity.range[1],quantity.range[2],by = 50)
+y.synt <- step.function(x.synt)
+
+order <- 1
+basis <- create.bspline.basis(rangeval=quantity.range, nbasis=801, norder=order)
+Xsp <- smooth.basis(argvals=x.synt, y=y.synt, fdParobj=basis)
+Xsp0bis <- eval.fd(abscissa, Xsp$fd)
+plot(abscissa,Xsp0bis,type='s')
+points(abscissa,ordinate,type='s',col='red')
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
