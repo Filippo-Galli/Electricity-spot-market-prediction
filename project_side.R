@@ -307,7 +307,51 @@ plot + geom_point(data = mcpx, aes(x = x, y = y), color = "black", size = 3, inh
 
 library(fda)
 
-nbasis.gcv <- list()
+# TOO HEAVY and not very informative
+# nbasis.gcv <- list()
+# 
+# for(day in as.character(date.sequence)){
+#   
+#   day.list <- list()
+#   
+#   for(hour in 1:24){
+#     
+#     this.df <- restricted.plot.off[[day]][which(restricted.plot.off[[day]]$Ora %in% hour),c(2,5,6)]
+#     
+#     # original data
+#     abscissa <- this.df$Quantita.sum
+#     ordinate <- this.df$Prezzo
+#     
+#     if(length(abscissa) > 0 & length(ordinate) > 0){
+#       # step function -> syntetic point -> smoothing
+#       step.function <- stepfun(abscissa,c(ordinate[1],ordinate))
+#       x.synt <- seq(quantity.range[1],quantity.range[2],by = 100)
+#       y.synt <- step.function(x.synt)
+#       order <- 1
+#       nbasis <- seq(100, 400, by = 10)
+#       gcv <- rep(NA,length(nbasis))
+#       
+#       for (i in 1:length(nbasis)){
+#         basis <- create.bspline.basis(rangeval=quantity.range, nbasis=nbasis[i], norder=order)
+#         gcv[i] <- smooth.basis(x.synt, y.synt, basis)$gcv
+#       }
+#       
+#       day.list[[as.character(hour)]] <- nbasis[which.min(gcv)]
+#       
+#     } else{
+#       day.list[[as.character(hour)]] <- NA
+#     }
+#     
+#     
+#   }
+#   
+#   nbasis.gcv[[day]] <- day.list
+#   
+# }
+
+nbasis <- list()
+step.length <- 50
+n <- length(seq(quantity.range[1],quantity.range[2],by = step.length))
 
 for(day in as.character(date.sequence)){
   
@@ -322,20 +366,7 @@ for(day in as.character(date.sequence)){
     ordinate <- this.df$Prezzo
     
     if(length(abscissa) > 0 & length(ordinate) > 0){
-      # step function -> syntetic point -> smoothing
-      step.function <- stepfun(abscissa,c(ordinate[1],ordinate))
-      x.synt <- seq(quantity.range[1],quantity.range[2],by = 100)
-      y.synt <- step.function(x.synt)
-      order <- 1
-      nbasis <- seq(100, 400, by = 10)
-      gcv <- rep(NA,length(nbasis))
-      
-      for (i in 1:length(nbasis)){
-        basis <- create.bspline.basis(rangeval=quantity.range, nbasis=nbasis[i], norder=order)
-        gcv[i] <- smooth.basis(x.synt, y.synt, basis)$gcv
-      }
-      
-      day.list[[as.character(hour)]] <- nbasis[which.min(gcv)]
+      day.list[[as.character(hour)]] <- n # number of basis equal to number of considered points
       
     } else{
       day.list[[as.character(hour)]] <- NA
@@ -344,39 +375,13 @@ for(day in as.character(date.sequence)){
     
   }
   
-  nbasis.gcv[[day]] <- day.list
+  nbasis[[day]] <- day.list
   
 }
 
-nbasis.gcv <- list()
+# all hours of day
 
-for(day in as.character(date.sequence)){
-  
-  day.list <- list()
-  
-  for(hour in 1:24){
-    
-    this.df <- restricted.plot.off[[day]][which(restricted.plot.off[[day]]$Ora %in% hour),c(2,5,6)]
-    
-    # original data
-    abscissa <- this.df$Quantita.sum
-    ordinate <- this.df$Prezzo
-    
-    if(length(abscissa) > 0 & length(ordinate) > 0){
-      day.list[[as.character(hour)]] <- 400
-      
-    } else{
-      day.list[[as.character(hour)]] <- NA
-    }
-    
-    
-  }
-  
-  nbasis.gcv[[day]] <- day.list
-  
-}
-
-day <- "2023-06-01"
+day <- "2023-01-01"
 
 plot(NA, NA, xlim = quantity.range, ylim = prezzo.range, xlab = "Quantita", ylab = "Prezzo", main = paste("Smoothed of",day,sep=" "))
 
@@ -390,35 +395,131 @@ for(hour in 1:24){
   if(length(abscissa) > 0 & length(ordinate) > 0){
   # step function -> syntetic point -> smoothing
   step.function <- stepfun(abscissa,c(ordinate[1],ordinate))
-  x.synt <- seq(quantity.range[1],quantity.range[2],by = 50)
+  x.synt <- seq(quantity.range[1],quantity.range[2],by = step.length)
   y.synt <- step.function(x.synt)
   
   order <- 1
-  basis <- create.bspline.basis(rangeval=quantity.range, nbasis=801, norder=order)
-  Xsp <- smooth.basis(argvals=x.synt, y=y.synt, fdParobj=basis)
-  Xsp0bis <- eval.fd(abscissa, Xsp$fd)
-  points(abscissa,Xsp0bis,type='s', col = hour)
+  basis <- create.bspline.basis(rangeval=quantity.range, nbasis=nbasis[[day]][[hour]], norder=order)
+  smoothed <- smooth.basis(argvals=x.synt, y=y.synt, fdParobj=basis)
+  smooth.eval <- eval.fd(abscissa, smoothed$fd)
+  points(abscissa,smooth.eval,type='s', col = hour)
   }
   
 }
 
-this.df <- restricted.plot.off[[day]][which(restricted.plot.off[[day]]$Ora %in% hour),c(2,5,6)] %>% group_by(Ora)
+# plot all selected days of fixed hour
 
-# original data
-abscissa <- this.df$Quantita.sum
-ordinate <- this.df$Prezzo
+start.day <- as.Date("2023-01-01")
+end.day<- as.Date("2023-12-31")
+days <- seq.Date(start.day, end.day, by = "month")
+hour <- 1
 
-# step function -> syntetic point -> smoothing
-step.function <- stepfun(abscissa,c(ordinate[1],ordinate))
-x.synt <- seq(quantity.range[1],quantity.range[2],by = 50)
-y.synt <- step.function(x.synt)
+matrix.smoothed.eval <- c()
 
-order <- 1
-basis <- create.bspline.basis(rangeval=quantity.range, nbasis=801, norder=order)
-Xsp <- smooth.basis(argvals=x.synt, y=y.synt, fdParobj=basis)
-Xsp0bis <- eval.fd(abscissa, Xsp$fd)
-plot(abscissa,Xsp0bis,type='s')
-points(abscissa,ordinate,type='s',col='red')
+plot(NA, NA, xlim = quantity.range, ylim = prezzo.range, xlab = "Quantita", ylab = "Prezzo", main = paste("Smoothed of",as.character(hour),sep=" "))
+
+day <- "2023-01-01"
+i <- 1
+for(day in as.character(days)){
+  this.df <- restricted.plot.off[[day]][which(restricted.plot.off[[day]]$Ora %in% hour),c(2,5,6)] %>% group_by(Ora)
+  
+  # original data
+  abscissa <- this.df$Quantita.sum
+  ordinate <- this.df$Prezzo
+  
+  if(length(abscissa) > 0 & length(ordinate) > 0){
+    # step function -> syntetic point -> smoothing
+    step.function <- stepfun(abscissa,c(ordinate[1],ordinate))
+    x.synt <- seq(quantity.range[1],quantity.range[2],by = step.length)
+    y.synt <- step.function(x.synt)
+    
+    order <- 1
+    basis <- create.bspline.basis(rangeval=quantity.range, nbasis=nbasis[[day]][[hour]], norder=order)
+    smoothed <- smooth.basis(argvals=x.synt, y=y.synt, fdParobj=basis)
+    smoothed.eval <- eval.fd(abscissa, smoothed$fd)
+    points(abscissa,smoothed.eval,type='s', col = i)
+    
+    matrix.smoothed.eval <- cbind(matrix.smoothed.eval,eval.fd(x.synt, smoothed$fd))
+  }
+  
+  i <- i+1
+  
+}
+
+##################################### Alignment ############################################
+
+install.packages("fdasrvf")
+library(fdasrvf)
+
+# init of matrix of functions to align
+matrix.smoothed.eval <- c()
+
+# by days, fixed hour
+start.day <- as.Date("2023-01-01")
+end.day<- as.Date("2023-12-31")
+days <- seq.Date(start.day, end.day, by = "month")
+hour <- 1
+for(day in as.character(days)){
+  
+  this.df <- restricted.plot.off[[day]][which(restricted.plot.off[[day]]$Ora %in% hour),c(2,5,6)] %>% group_by(Ora)
+  
+  # original data
+  abscissa <- this.df$Quantita.sum
+  ordinate <- this.df$Prezzo
+  
+  if(length(abscissa) > 0 & length(ordinate) > 0){
+    # step function -> syntetic point -> smoothing
+    step.function <- stepfun(abscissa,c(ordinate[1],ordinate))
+    x.synt <- seq(quantity.range[1],quantity.range[2],by = step.length)
+    y.synt <- step.function(x.synt)
+    
+    order <- 1
+    basis <- create.bspline.basis(rangeval=quantity.range, nbasis=nbasis[[day]][[hour]], norder=order)
+    smoothed <- smooth.basis(argvals=x.synt, y=y.synt, fdParobj=basis)
+    matrix.smoothed.eval <- cbind(matrix.smoothed.eval,eval.fd(x.synt, smoothed$fd))
+  }
+  
+}
+
+# by hours, fixed day
+
+day <- "2023-01-01"
+
+for(hour in 1:24){
+  this.df <- restricted.plot.off[[day]][which(restricted.plot.off[[day]]$Ora %in% hour),c(2,5,6)] %>% group_by(Ora)
+  
+  # original data
+  abscissa <- this.df$Quantita.sum
+  ordinate <- this.df$Prezzo
+  
+  if(length(abscissa) > 0 & length(ordinate) > 0){
+    # step function -> syntetic point -> smoothing
+    step.function <- stepfun(abscissa,c(ordinate[1],ordinate))
+    x.synt <- seq(quantity.range[1],quantity.range[2],by = step.length)
+    y.synt <- step.function(x.synt)
+    
+    order <- 1
+    basis <- create.bspline.basis(rangeval=quantity.range, nbasis=nbasis[[day]][[hour]], norder=order)
+    smoothed <- smooth.basis(argvals=x.synt, y=y.synt, fdParobj=basis)
+    matrix.smoothed.eval <- cbind(matrix.smoothed.eval,eval.fd(x.synt, smoothed$fd))
+  }
+  
+}
+
+
+
+# Perform warping using time warping
+aligned.curves <- time_warping(matrix.smoothed.eval, time = x.synt)
+
+plot(NA, NA, xlim = quantity.range, ylim = prezzo.range, xlab = "Quantita", ylab = "Prezzo", main = "Alignement plot")
+legend('bottomright', legend = c('Original', 'Aligned'), col = c('blue', 'red'), lty = 1)
+
+for(j in 1:ncol(matrix.smoothed.eval)){
+  lines(x.synt, matrix.smoothed.eval[,j], col = 'blue')
+  lines(x.synt, aligned.curves$fn[,j], col = 'red')
+}
+
+
 
 
 
