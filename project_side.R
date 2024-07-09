@@ -536,10 +536,12 @@ matrix.smoothed.eval.off <- c()
 matrix.smoothed.eval.bid<- c()
 
 # by days, fixed hour
-start.day <- as.Date("2023-01-01")
-end.day<- as.Date("2023-01-31")
+start.day <- as.Date("2023-01-31")
+end.day<- as.Date("2023-02-06")
 hour <- 1
 ndays <- seq(which(date.sequence==start.day),which(date.sequence==end.day), by = 1)
+
+knots.bid <- unique(c(10000,seq(10000, 20000, length = 100), seq(20000, 30000, length = 600), seq(30000, 40000, length = 100), seq(40000, 50000, length = 100),50000 ))
 
 for(nday in ndays){
   ## Offerta
@@ -568,22 +570,23 @@ for(nday in ndays){
   
   if(length(abscissa) > 0 & length(ordinate) > 0){
     step.function <- stepfun(abscissa, c(ordinate[1], ordinate))
-    x.synt.bid <- seq(quantity.range[1],quantity.range[2],by = step.length)
+    x.synt.bid <- knots.bid
     y.synt.bid <- step.function(x.synt.bid)
     
     order <- 1
-    basis <- create.bspline.basis(rangeval=quantity.range, nbasis=nbasis[[nday]][[hour]], norder=order)
+    basis <- create.bspline.basis(breaks = knots.bid, norder=2)
     smoothed <- smooth.basis(argvals=x.synt.bid, y=y.synt.bid, fdParobj=basis)
-    matrix.smoothed.eval.bid <- cbind(matrix.smoothed.eval.bid,eval.fd(x.synt.bid, smoothed$fd))
+    matrix.smoothed.eval.bid <- cbind(matrix.smoothed.eval.bid, eval.fd(x.synt.bid, smoothed$fd))
   }
 }
 
 # Create a basis for the functional data object
-basis <- create.bspline.basis(rangeval = quantity.range, nbasis = 801, norder = 2)
+basis.off <- create.bspline.basis(rangeval = quantity.range, nbasis = 801, norder = 2)
+basis.bid <- create.bspline.basis(breaks = knots.bid, norder=2)
 
 # Create a functional data object
-fd.off <- Data2fd(argvals = x.synt.off, y = matrix.smoothed.eval.off, basis)
-fd.bid <- Data2fd(argvals = x.synt.bid, y = matrix.smoothed.eval.bid, basis)
+fd.off <- Data2fd(argvals = x.synt.off, y = matrix.smoothed.eval.off, basis.off)
+fd.bid <- Data2fd(argvals = x.synt.bid, y = matrix.smoothed.eval.bid, basis.bid)
 
 # Perform functional principal component analysis
 k <- 10
@@ -596,7 +599,6 @@ legend('topright', legend = paste("PC", 1:k), col = 1:k, lty = 1)
 plot.fd(fpca.bid$harmonics, xlab = "Quantita", ylab = "Prezzo OFF", main = "Functional Principal Components")
 legend('topright', legend = paste("PC", 1:k), col = 1:k, lty = 1)
 
-############################# fPCA ###################################################
 
 # Save of scores matrix
 scores.matrix.off <- fpca.off$scores
@@ -648,9 +650,13 @@ forecast.reconstructed.curve.bid <- fpca.bid$harmonics$coefs %*% t(mean.predicti
 
 plot(NA, NA, xlim = quantity.range, ylim = prezzo.range, xlab = "Quantita", ylab = "Prezzo", main = "Predicted Curve")
 # Reconstruct the forecasted curves applying our gang variable 
-points(x.synt.off, forecast.reconstructed.curve.off, xlab = "Quantita", ylab = "Prezzo", main = "Reconstructed forecasted curves", lwd=2, col = 'red', type='s')
+points(x.synt.off, forecast.reconstructed.curve.off, xlab = "Quantita", ylab = "Prezzo",lty =2, main = "Reconstructed forecasted curves", lwd=2, col = 'red', type='s')
 # Reconstruct the forecasted curves applying our gang variable 
 points(x.synt.bid, forecast.reconstructed.curve.bid, xlab = "Quantita", ylab = "Prezzo", main = "Reconstructed forecasted curves", lwd=2, col = 'green',type='s')
+#delta_value <- delta.mcq %>% pull(delta)
+#x.synt.off <- x.synt.off + delta_value
+#points(x.synt.off, forecast.reconstructed.curve.off, xlab = "Quantita", ylab = "Prezzo", main = "Reconstructed forecasted curves", lwd=2, col = 'red', type='s')
+#delta_value
 
 find_intersections_prediction <- function(c.off, c.bid) {
   intersections <- data.frame()
@@ -684,6 +690,7 @@ find_intersections_prediction <- function(c.off, c.bid) {
 
 intr <- find_intersections_prediction(forecast.reconstructed.curve.off,forecast.reconstructed.curve.bid)
 abline(v=intr$x,h=intr$y,lty=2,col='grey')
+intr
 
 par(mfrow=c(1,1))
 
