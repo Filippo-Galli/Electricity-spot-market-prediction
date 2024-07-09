@@ -515,7 +515,6 @@ for(hour in 1:24){
   
 }
 
-
 # Perform warping using time warping
 aligned.curves <- time_warping(matrix.smoothed.eval, time = x.synt)
 #aligned.curves.fd <- time_warping(matrix.smoothed.eval.fd, time = x.synt)
@@ -530,9 +529,59 @@ for(j in 1:ncol(matrix.smoothed.eval)){
 }
 
 
+############################# fPCA ###################################################
+
+j <- 4
+basis <- create.bspline.basis(rangeval=quantity.range, nbasis=801)
+matrix.fd <- Data2fd(y = matrix.smoothed.eval, argvals=x.synt,  basisobj = basis)
+pca <- pca.fd(matrix.fd,nharm=j,centerfns=TRUE)
+
+explained.var.firstj <- cumsum(pca$values)[1:j]/sum(pca$values) #screeplot
+plot(explained.var.firstj,type='b')
+
+par(mfrow=c(2,2))
+plot(pca$harmonics[1])
+plot(pca$harmonics[2])
+plot(pca$harmonics[3])
+plot(pca$harmonics[4])
+
+plot(pca, nx=100, pointplot=TRUE, harm=c(1,2,3,4), expand=0, cycle=FALSE) #harm select : fpca$harmonics[1,] 
 
 
 
+
+
+
+matrix.smoothed.eval.fd <- c()
+# by days, fixed hour
+start.day <- as.Date("2023-01-01")
+end.day<- as.Date("2023-01-31")
+hour <- 1
+ndays <- seq(which(date.sequence==start.day),which(date.sequence==end.day), by = 1)
+
+for(nday in ndays){
+  
+  this.df <- restricted.plot.off[[nday]][which(restricted.plot.off[[nday]]$Ora %in% hour),c(2,5,6)] %>% group_by(Ora)
+  
+  # original data
+  abscissa <- this.df$Quantita.sum
+  ordinate <- this.df$Prezzo
+  
+  if(length(abscissa) > 0 & length(ordinate) > 0){
+    # step function -> syntetic point -> smoothing
+    step.function <- stepfun(abscissa,c(ordinate[1],ordinate))
+    x.synt <- seq(quantity.range[1],quantity.range[2],by = step.length)
+    y.synt <- step.function(x.synt)
+    
+    order <- 1
+    basis <- create.bspline.basis(rangeval=quantity.range, nbasis=nbasis[[nday]][[hour]], norder=order)
+    smoothed <- smooth.basis(argvals=x.synt, y=y.synt, fdParobj=basis)
+    matrix.smoothed.eval <- cbind(matrix.smoothed.eval,eval.fd(x.synt, smoothed$fd))
+    datafd <- Data2fd(argvals=x.synt, y=matrix.smoothed.eval.fd, basis)
+    matrix.smoothed.eval.fd <- cbind(matrix.smoothed.eval.fd,eval.fd(x.synt, datafd))
+  }
+  
+}
 
 
 
