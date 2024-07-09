@@ -650,22 +650,3 @@ forecast.reconstructed.curve.bid <- fpca.bid$harmonics$coefs %*% t(mean.predicti
 plot(x.synt.off, type="l", forecast.reconstructed.curve.off, xlab = "Quantita", ylab = "Prezzo", main = "Reconstructed forecasted curves", lwd=2, col = 'red')
 # Reconstruct the forecasted curves applying our gang variable 
 lines(x.synt.bid, forecast.reconstructed.curve.bid, xlab = "Quantita", ylab = "Prezzo", main = "Reconstructed forecasted curves", lwd=2, col = 'green')
-
-
-<<<<<<< Updated upstream
-
-
-
-
-
-
-
-
-
-
-
-
-
-=======
-  
->>>>>>> Stashed changes
