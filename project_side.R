@@ -231,22 +231,23 @@ ggplot(restricted.plot.bid[[24]], aes(x = Quantita.sum, y = Prezzo, color = as.f
 
 ############################## Market Clearing Price #############################
 
-day <- as.character(date.sequence[1])
+nday <- 1
+day <- as.character(date.sequence[nday])
 hour <- 1
 
 mcp.df <- read.table("MarketCoupling.txt")
 mcp.df <- mcp.df[,-5]
-mcp.df <- mcp.df[which(as.Date(mcp$Data) %in% date.sequence),]
+mcp.df <- mcp.df[which(as.Date(mcp.df$Data) %in% date.sequence),]
 
 mcq.df <- mcp.df %>%
   group_by(Data, Ora) %>%
   summarise(delta = sum(FlussoImport - FlussoExport)) %>%
   ungroup()
 
-delta.mcq <- mcq.df[mcq.df$Data==day & mcq.df$Ora = hour,3]
+delta.mcq <- mcq.df[mcq.df$Data==day & mcq.df$Ora == hour,3]
 
-off <- restricted.plot.off[[day]][which(restricted.plot.off[[day]]$Ora %in% hour),c(2,5,6)]
-bid <- restricted.plot.bid[[day]][which(restricted.plot.bid[[day]]$Ora %in% hour),c(2,5,6)]
+off <- restricted.plot.off[[nday]][which(restricted.plot.off[[nday]]$Ora %in% hour),c(2,5,6)]
+bid <- restricted.plot.bid[[nday]][which(restricted.plot.bid[[nday]]$Ora %in% hour),c(2,5,6)]
 off.shift <- off
 off.shift$Quantita.sum <- off.shift$Quantita.sum + rep(as.numeric(delta.mcq),nrow(off.shift))
 
@@ -301,7 +302,7 @@ find_intersections <- function(df1, df2) {
 }
 
 mcp <- find_intersections(off.shift,bid)
-plot + geom_point(data = mcpx, aes(x = x, y = y), color = "black", size = 3, inherit.aes = FALSE)
+plot + geom_point(data = mcp, aes(x = x, y = y), color = "black", size = 3, inherit.aes = FALSE)
 
 ################################### Smoothing ###################################################
 
@@ -353,13 +354,13 @@ nbasis <- list()
 step.length <- 50
 n <- length(seq(quantity.range[1],quantity.range[2],by = step.length))
 
-for(day in as.character(date.sequence)){
+for(nday in 1:365){
   
   day.list <- list()
   
   for(hour in 1:24){
     
-    this.df <- restricted.plot.off[[day]][which(restricted.plot.off[[day]]$Ora %in% hour),c(2,5,6)]
+    this.df <- restricted.plot.off[[nday]][which(restricted.plot.off[[nday]]$Ora %in% hour),c(2,5,6)]
     
     # original data
     abscissa <- this.df$Quantita.sum
@@ -375,18 +376,19 @@ for(day in as.character(date.sequence)){
     
   }
   
-  nbasis[[day]] <- day.list
+  nbasis[[nday]] <- day.list
   
 }
 
 # all hours of day
 
-day <- "2023-01-01"
+nday <- 150
+day <- as.character(date.sequence[nday])
 
 plot(NA, NA, xlim = quantity.range, ylim = prezzo.range, xlab = "Quantita", ylab = "Prezzo", main = paste("Smoothed of",day,sep=" "))
 
 for(hour in 1:24){
-  this.df <- restricted.plot.off[[day]][which(restricted.plot.off[[day]]$Ora %in% hour),c(2,5,6)] %>% group_by(Ora)
+  this.df <- restricted.plot.off[[nday]][which(restricted.plot.off[[nday]]$Ora %in% hour),c(2,5,6)] %>% group_by(Ora)
   
   # original data
   abscissa <- this.df$Quantita.sum
@@ -399,7 +401,7 @@ for(hour in 1:24){
   y.synt <- step.function(x.synt)
   
   order <- 1
-  basis <- create.bspline.basis(rangeval=quantity.range, nbasis=nbasis[[day]][[hour]], norder=order)
+  basis <- create.bspline.basis(rangeval=quantity.range, nbasis=nbasis[[nday]][[hour]], norder=order)
   smoothed <- smooth.basis(argvals=x.synt, y=y.synt, fdParobj=basis)
   smooth.eval <- eval.fd(abscissa, smoothed$fd)
   points(abscissa,smooth.eval,type='s', col = hour)
@@ -410,18 +412,18 @@ for(hour in 1:24){
 # plot all selected days of fixed hour
 
 start.day <- as.Date("2023-01-01")
-end.day<- as.Date("2023-12-31")
-days <- seq.Date(start.day, end.day, by = "month")
+end.day<- as.Date("2023-01-31")
 hour <- 1
+ndays <- seq(which(date.sequence==start.day),which(date.sequence==end.day), by = 1)
 
 matrix.smoothed.eval <- c()
 
-plot(NA, NA, xlim = quantity.range, ylim = prezzo.range, xlab = "Quantita", ylab = "Prezzo", main = paste("Smoothed of",as.character(hour),sep=" "))
+plot(NA, NA, xlim = quantity.range, ylim = prezzo.range, xlab = "Quantita", ylab = "Prezzo", main = paste("Smoothed of h:",as.character(hour),sep=" "))
 
-day <- "2023-01-01"
+
 i <- 1
-for(day in as.character(days)){
-  this.df <- restricted.plot.off[[day]][which(restricted.plot.off[[day]]$Ora %in% hour),c(2,5,6)] %>% group_by(Ora)
+for(nday in ndays){
+  this.df <- restricted.plot.off[[nday]][which(restricted.plot.off[[nday]]$Ora %in% hour),c(2,5,6)] %>% group_by(Ora)
   
   # original data
   abscissa <- this.df$Quantita.sum
@@ -434,7 +436,7 @@ for(day in as.character(days)){
     y.synt <- step.function(x.synt)
     
     order <- 1
-    basis <- create.bspline.basis(rangeval=quantity.range, nbasis=nbasis[[day]][[hour]], norder=order)
+    basis <- create.bspline.basis(rangeval=quantity.range, nbasis=nbasis[[nday]][[hour]], norder=order)
     smoothed <- smooth.basis(argvals=x.synt, y=y.synt, fdParobj=basis)
     smoothed.eval <- eval.fd(abscissa, smoothed$fd)
     points(abscissa,smoothed.eval,type='s', col = i)
@@ -453,15 +455,17 @@ library(fdasrvf)
 
 # init of matrix of functions to align
 matrix.smoothed.eval <- c()
+#matrix.smoothed.eval.fd <- c()
 
 # by days, fixed hour
 start.day <- as.Date("2023-01-01")
-end.day<- as.Date("2023-12-31")
-days <- seq.Date(start.day, end.day, by = "month")
+end.day<- as.Date("2023-01-31")
 hour <- 1
-for(day in as.character(days)){
+ndays <- seq(which(date.sequence==start.day),which(date.sequence==end.day), by = 1)
+
+for(nday in ndays){
   
-  this.df <- restricted.plot.off[[day]][which(restricted.plot.off[[day]]$Ora %in% hour),c(2,5,6)] %>% group_by(Ora)
+  this.df <- restricted.plot.off[[nday]][which(restricted.plot.off[[nday]]$Ora %in% hour),c(2,5,6)] %>% group_by(Ora)
   
   # original data
   abscissa <- this.df$Quantita.sum
@@ -474,19 +478,22 @@ for(day in as.character(days)){
     y.synt <- step.function(x.synt)
     
     order <- 1
-    basis <- create.bspline.basis(rangeval=quantity.range, nbasis=nbasis[[day]][[hour]], norder=order)
+    basis <- create.bspline.basis(rangeval=quantity.range, nbasis=nbasis[[nday]][[hour]], norder=order)
     smoothed <- smooth.basis(argvals=x.synt, y=y.synt, fdParobj=basis)
     matrix.smoothed.eval <- cbind(matrix.smoothed.eval,eval.fd(x.synt, smoothed$fd))
+    #matrix.fd <- Data2fd(argvals=x.synt, y=matrix.smoothed.eval.fd, basis)
+    #matrix.smoothed.eval.fd <- cbind(matrix.smoothed.eval.fd,eval.fd(x.synt, datafd))
   }
   
 }
 
 # by hours, fixed day
 
-day <- "2023-01-01"
+day <- as.Date("2023-01-01")
+nday <- which(date.sequence==day)
 
 for(hour in 1:24){
-  this.df <- restricted.plot.off[[day]][which(restricted.plot.off[[day]]$Ora %in% hour),c(2,5,6)] %>% group_by(Ora)
+  this.df <- restricted.plot.off[[nday]][which(restricted.plot.off[[nday]]$Ora %in% hour),c(2,5,6)] %>% group_by(Ora)
   
   # original data
   abscissa <- this.df$Quantita.sum
@@ -499,17 +506,19 @@ for(hour in 1:24){
     y.synt <- step.function(x.synt)
     
     order <- 1
-    basis <- create.bspline.basis(rangeval=quantity.range, nbasis=nbasis[[day]][[hour]], norder=order)
+    basis <- create.bspline.basis(rangeval=quantity.range, nbasis=nbasis[[nday]][[hour]], norder=order)
     smoothed <- smooth.basis(argvals=x.synt, y=y.synt, fdParobj=basis)
     matrix.smoothed.eval <- cbind(matrix.smoothed.eval,eval.fd(x.synt, smoothed$fd))
+    #matrix.fd <- Data2fd(argvals=x.synt, y=matrix.smoothed.eval.fd, basis)
+    #matrix.smoothed.eval.fd <- cbind(matrix.smoothed.eval.fd,eval.fd(x.synt, datafd))
   }
   
 }
 
 
-
 # Perform warping using time warping
 aligned.curves <- time_warping(matrix.smoothed.eval, time = x.synt)
+#aligned.curves.fd <- time_warping(matrix.smoothed.eval.fd, time = x.synt)
 
 plot(NA, NA, xlim = quantity.range, ylim = prezzo.range, xlab = "Quantita", ylab = "Prezzo", main = "Alignement plot")
 legend('bottomright', legend = c('Original', 'Aligned'), col = c('blue', 'red'), lty = 1)
@@ -517,6 +526,7 @@ legend('bottomright', legend = c('Original', 'Aligned'), col = c('blue', 'red'),
 for(j in 1:ncol(matrix.smoothed.eval)){
   lines(x.synt, matrix.smoothed.eval[,j], col = 'blue')
   lines(x.synt, aligned.curves$fn[,j], col = 'red')
+  #lines(x.synt, aligned.curves.fd$fn[,j], col = 'green')
 }
 
 
