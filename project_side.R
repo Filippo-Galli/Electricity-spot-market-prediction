@@ -231,8 +231,8 @@ ggplot(restricted.plot.bid[[24]], aes(x = Quantita.sum, y = Prezzo, color = as.f
 
 ############################## Market Clearing Price #############################
 
-nday <- 1
-day <- as.character(date.sequence[nday])
+day <- as.Date("2023-02-01")
+nday <- which(date.sequence==day)
 hour <- 1
 
 mcp.df <- read.table("MarketCoupling.txt")
@@ -261,7 +261,7 @@ off.bid$Type.Ora <- interaction(off.bid$Type, off.bid$Ora)
 # plot of curves(off-bid) selected
 plot <- ggplot(off.bid, aes(x = Quantita.sum, y = Prezzo, color = Type.Ora, linetype = Type)) +
   geom_step() +
-  labs(title = paste("Cumulative Sum of Quantity vs. Prezzo for ", date.sequence[1]),
+  labs(title = paste("Cumulative Sum of Quantity vs. Prezzo for ", date.sequence[nday]),
        x = "Cumulative Quantity",
        y = "Prezzo",
        color = "Type") +
@@ -301,7 +301,7 @@ find_intersections <- function(df1, df2) {
   return(intersections)
 }
 
-mcp <- find_intersections(off.shift,bid)
+mcp <- find_intersections(off,bid)
 plot + geom_point(data = mcp, aes(x = x, y = y), color = "black", size = 3, inherit.aes = FALSE)
 
 ################################### Smoothing ###################################################
@@ -640,13 +640,70 @@ mean.prediction.forecast.value.bid <- NULL
 for(i in 1:k ){
   mean.prediction.forecast.value.bid <- cbind(mean.prediction.forecast.value.bid, mean.prediction.forecast.bid[[i]][1])
 }
-forecast.reconstructed.curve.bid <- fpca.bid$harmonics$coefs %*% t(mean.prediction.forecast.value)
+forecast.reconstructed.curve.bid <- fpca.bid$harmonics$coefs %*% t(mean.prediction.forecast.value.bid)
 
 # test accuracy of the code 
 # plot(x.synt, scores.matrix.bid[1, ] %*% t(fpca.bid$harmonics$coefs) , ylab = "prezzo", xlab = "Quantita", main = "Reconstructed forecasted curves")
 # lines(x.synt, matrix.smoothed.eval.bid[,1], col = 'blue', lwd = 6)
 
+plot(NA, NA, xlim = quantity.range, ylim = prezzo.range, xlab = "Quantita", ylab = "Prezzo", main = "Predicted Curve")
 # Reconstruct the forecasted curves applying our gang variable 
-plot(x.synt.off, type="l", forecast.reconstructed.curve.off, xlab = "Quantita", ylab = "Prezzo", main = "Reconstructed forecasted curves", lwd=2, col = 'red')
+points(x.synt.off, forecast.reconstructed.curve.off, xlab = "Quantita", ylab = "Prezzo", main = "Reconstructed forecasted curves", lwd=2, col = 'red', type='s')
 # Reconstruct the forecasted curves applying our gang variable 
-lines(x.synt.bid, forecast.reconstructed.curve.bid, xlab = "Quantita", ylab = "Prezzo", main = "Reconstructed forecasted curves", lwd=2, col = 'green')
+points(x.synt.bid, forecast.reconstructed.curve.bid, xlab = "Quantita", ylab = "Prezzo", main = "Reconstructed forecasted curves", lwd=2, col = 'green',type='s')
+
+find_intersections_prediction <- function(c.off, c.bid) {
+  intersections <- data.frame()
+  for (i in 1:(nrow(c.off) - 1)) {
+    for (j in 1:(nrow(c.bid) - 1)) {
+      # Check if lines (x1, y1)-(x2, y2) and (x3, y3)-(x4, y4) intersect
+      a1 <- c.off[i+1] - c.off[i]
+      b1 <- x.synt.off[i] - x.synt.bid[i+1]
+      c1 <- a1 * x.synt.bid[i] + b1 * c.off[i]
+      
+      a2 <- c.bid[j+1] - c.bid[j]
+      b2 <- x.synt.bid[j] - x.synt.bid[j+1]
+      c2 <- a2 * x.synt.bid[j] + b2 * c.bid[j]
+      
+      det <- a1 * b2 - a2 * b1
+      if (det != 0) {
+        x <- (b2 * c1 - b1 * c2) / det
+        y <- (a1 * c2 - a2 * c1) / det
+        # Check if intersection point (x, y) is within line segments
+        if (x >= min(x.synt.off[i], x.synt.off[i+1]) && 
+            x <= max(x.synt.off[i], x.synt.off[i+1]) && 
+            x >= min(x.synt.bid[j], x.synt.bid[j+1]) && 
+            x <= max(x.synt.bid[j], x.synt.bid[j+1])) {
+          intersections <- rbind(intersections, data.frame(x = x, y = y))
+        }
+      }
+    }
+  }
+  return(intersections)
+}
+
+intr <- find_intersections_prediction(forecast.reconstructed.curve.off,forecast.reconstructed.curve.bid)
+abline(v=intr$x,h=intr$y,lty=2,col='grey')
+
+par(mfrow=c(1,1))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
