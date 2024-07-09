@@ -773,3 +773,41 @@ if(day %in% days){
   print("Day not found in the data")
 }
 
+# Cleaning variables  
+rm(day, hour, name, restricted_prezzo, restricted_abscissa, step_function, df_subset, fit, x_synt, y_synt, placeholder)
+
+
+######################### Pointwise prediction #############################
+
+library(nlme)
+library(lme4)
+
+gas.df <- read.csv("csv/Dutch TTF Natural Gas Futures Historical Data.csv")
+gas.df$Date <- as.Date(gas.df$Date, format = "%m/%d/%Y")
+gas.df <- gas.df %>% filter(gas.df$Date >= as.Date("2023-01-01") & gas.df$Date <= as.Date("2023-12-31"))
+
+gas.df$month <- factor(month(gas.df$Date))
+
+# extract for each day and hour Prezzo Zonale
+df_prezzoZonale <- df_synt %>%
+  group_by(Data, Ora) %>%
+  summarise(PrezzoZonale = mean(PrezzoZonale))
+
+# remove NA
+df_prezzoZonale <- na.omit(df_prezzoZonale)
+
+# order by date and hour
+df_prezzoZonale <- df_prezzoZonale[order(df_prezzoZonale$Data, df_prezzoZonale$Ora), ]
+
+# add regressor 1 (prezzoZonale of hour before)
+PrezzoZonale <- df_prezzoZonale$PrezzoZonale[-length(df_prezzoZonale$PrezzoZonale)]
+df_prezzoZonale <- df_prezzoZonale[-1, ]
+df_prezzoZonale$regressor1 <- PrezzoZonale
+
+# add monthly gas price
+df_prezzoZonale$gas.price <- gas.df$Price[match(month(df_prezzoZonale$Data), month(gas.df$Date))]
+df_prezzoZonale$month <- month(df_prezzoZonale$Data)
+
+lm <- lm(PrezzoZonale ~ regressor1 + Ora + gas.price, data = df_prezzoZonale)
+summary(lm)
+

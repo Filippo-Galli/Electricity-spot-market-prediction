@@ -398,6 +398,7 @@ for(hour in 1:24){
   # step function -> syntetic point -> smoothing
   step.function <- stepfun(abscissa,c(ordinate[1],ordinate))
   x.synt <- seq(quantity.range[1],quantity.range[2],by = step.length)
+  test.fPCA <- 
   y.synt <- step.function(x.synt)
   
   order <- 1
@@ -528,31 +529,12 @@ for(j in 1:ncol(matrix.smoothed.eval)){
   #lines(x.synt, aligned.curves.fd$fn[,j], col = 'green')
 }
 
+####################################### fPCA #################################
 
-############################# fPCA ###################################################
+# init of matrix of functions to align
+matrix.smoothed.eval.off <- c()
+matrix.smoothed.eval.bid<- c()
 
-j <- 4
-basis <- create.bspline.basis(rangeval=quantity.range, nbasis=801)
-matrix.fd <- Data2fd(y = matrix.smoothed.eval, argvals=x.synt,  basisobj = basis)
-pca <- pca.fd(matrix.fd,nharm=j,centerfns=TRUE)
-
-explained.var.firstj <- cumsum(pca$values)[1:j]/sum(pca$values) #screeplot
-plot(explained.var.firstj,type='b')
-
-par(mfrow=c(2,2))
-plot(pca$harmonics[1])
-plot(pca$harmonics[2])
-plot(pca$harmonics[3])
-plot(pca$harmonics[4])
-
-plot(pca, nx=100, pointplot=TRUE, harm=c(1,2,3,4), expand=0, cycle=FALSE) #harm select : fpca$harmonics[1,] 
-
-
-
-
-
-
-matrix.smoothed.eval.fd <- c()
 # by days, fixed hour
 start.day <- as.Date("2023-01-01")
 end.day<- as.Date("2023-01-31")
@@ -560,7 +542,7 @@ hour <- 1
 ndays <- seq(which(date.sequence==start.day),which(date.sequence==end.day), by = 1)
 
 for(nday in ndays){
-  
+  ## Offerta
   this.df <- restricted.plot.off[[nday]][which(restricted.plot.off[[nday]]$Ora %in% hour),c(2,5,6)] %>% group_by(Ora)
   
   # original data
@@ -568,22 +550,109 @@ for(nday in ndays){
   ordinate <- this.df$Prezzo
   
   if(length(abscissa) > 0 & length(ordinate) > 0){
-    # step function -> syntetic point -> smoothing
     step.function <- stepfun(abscissa,c(ordinate[1],ordinate))
-    x.synt <- seq(quantity.range[1],quantity.range[2],by = step.length)
-    y.synt <- step.function(x.synt)
+    x.synt.off <- seq(quantity.range[1],quantity.range[2],by = step.length)
+    y.synt.off <- step.function(x.synt.off)
     
     order <- 1
     basis <- create.bspline.basis(rangeval=quantity.range, nbasis=nbasis[[nday]][[hour]], norder=order)
-    smoothed <- smooth.basis(argvals=x.synt, y=y.synt, fdParobj=basis)
-    matrix.smoothed.eval <- cbind(matrix.smoothed.eval,eval.fd(x.synt, smoothed$fd))
-    datafd <- Data2fd(argvals=x.synt, y=matrix.smoothed.eval.fd, basis)
-    matrix.smoothed.eval.fd <- cbind(matrix.smoothed.eval.fd,eval.fd(x.synt, datafd))
+    smoothed <- smooth.basis(argvals=x.synt.off, y=y.synt.off, fdParobj=basis)
+    matrix.smoothed.eval.off <- cbind(matrix.smoothed.eval.off,eval.fd(x.synt.off, smoothed$fd))
   }
   
+  ## Domanda
+  this.df <- restricted.plot.bid[[nday]][which(restricted.plot.bid[[nday]]$Ora %in% hour),c(2,5,6)] %>% group_by(Ora)
+  # original data
+  abscissa <- this.df$Quantita.sum
+  ordinate <- this.df$Prezzo
+  
+  if(length(abscissa) > 0 & length(ordinate) > 0){
+    step.function <- stepfun(abscissa, c(ordinate[1], ordinate))
+    x.synt.bid <- seq(quantity.range[1],quantity.range[2],by = step.length)
+    y.synt.bid <- step.function(x.synt.bid)
+    
+    order <- 1
+    basis <- create.bspline.basis(rangeval=quantity.range, nbasis=nbasis[[nday]][[hour]], norder=order)
+    smoothed <- smooth.basis(argvals=x.synt.bid, y=y.synt.bid, fdParobj=basis)
+    matrix.smoothed.eval.bid <- cbind(matrix.smoothed.eval.bid,eval.fd(x.synt.bid, smoothed$fd))
+  }
+}
+
+# Create a basis for the functional data object
+basis <- create.bspline.basis(rangeval = quantity.range, nbasis = 801, norder = 2)
+
+# Create a functional data object
+fd.off <- Data2fd(argvals = x.synt.off, y = matrix.smoothed.eval.off, basis)
+fd.bid <- Data2fd(argvals = x.synt.bid, y = matrix.smoothed.eval.bid, basis)
+
+# Perform functional principal component analysis
+k <- 10
+fpca.off <- pca.fd(fd.off, nharm=k, centerfns = FALSE)
+fpca.bid <- pca.fd(fd.bid, nharm=k, centerfns = FALSE)
+
+# Plot the functional principal components
+plot.fd(fpca.off$harmonics, xlab = "Quantita", ylab = "Prezzo OFF", main = "Functional Principal Components")
+legend('topright', legend = paste("PC", 1:k), col = 1:k, lty = 1)
+plot.fd(fpca.bid$harmonics, xlab = "Quantita", ylab = "Prezzo OFF", main = "Functional Principal Components")
+legend('topright', legend = paste("PC", 1:k), col = 1:k, lty = 1)
+
+############################# fPCA ###################################################
+
+# Save of scores matrix
+scores.matrix.off <- fpca.off$scores
+scores.matrix.bid <- fpca.bid$scores
+
+library(forecast)
+
+# Perform forecasting and save models
+pc.model.prediction.off <- list()
+pc.model.prediction.bid <- list()
+
+for (i in 1:ncol(scores.matrix.off)){
+  scores.off <- scores.matrix.off[,i]
+  scores.bid <- scores.matrix.bid[,i]
+  forecast.off <- forecast(auto.arima(scores.off))
+  forecast.bid <- forecast(auto.arima(scores.bid))
+  pc.model.prediction.off[[paste("PC", i)]] <- forecast.off
+  pc.model.prediction.bid[[paste("PC", i)]] <- forecast.bid
+
+}
+
+# Extract the mean forecasted values
+mean.prediction.forecast.off <- list()
+for(i in 1:k){
+  mean.prediction.forecast.off[[i]] <- predict(pc.model.prediction.off[[paste("PC", i)]], h = 1)$mean
+}
+mean.prediction.forecast.bid <- list()
+for(i in 1:k){
+  mean.prediction.forecast.bid[[i]] <- predict(pc.model.prediction.bid[[paste("PC", i)]], h = 1)$mean
 }
 
 
+# Reconstruct the forecasted curves
+mean.prediction.forecast.value.off <- NULL
+for(i in 1:k ){
+  mean.prediction.forecast.value.off <- cbind(mean.prediction.forecast.value.off, mean.prediction.forecast.off[[i]][1])
+}
+forecast.reconstructed.curve.off <- fpca.off$harmonics$coefs %*% t(mean.prediction.forecast.value.off)
+
+mean.prediction.forecast.value.bid <- NULL
+for(i in 1:k ){
+  mean.prediction.forecast.value.bid <- cbind(mean.prediction.forecast.value.bid, mean.prediction.forecast.bid[[i]][1])
+}
+forecast.reconstructed.curve.bid <- fpca.bid$harmonics$coefs %*% t(mean.prediction.forecast.value)
+
+# test accuracy of the code 
+# plot(x.synt, scores.matrix.bid[1, ] %*% t(fpca.bid$harmonics$coefs) , ylab = "prezzo", xlab = "Quantita", main = "Reconstructed forecasted curves")
+# lines(x.synt, matrix.smoothed.eval.bid[,1], col = 'blue', lwd = 6)
+
+# Reconstruct the forecasted curves applying our gang variable 
+plot(x.synt.off, type="l", forecast.reconstructed.curve.off, xlab = "Quantita", ylab = "Prezzo", main = "Reconstructed forecasted curves", lwd=2, col = 'red')
+# Reconstruct the forecasted curves applying our gang variable 
+lines(x.synt.bid, forecast.reconstructed.curve.bid, xlab = "Quantita", ylab = "Prezzo", main = "Reconstructed forecasted curves", lwd=2, col = 'green')
+
+
+<<<<<<< Updated upstream
 
 
 
@@ -597,8 +666,6 @@ for(nday in ndays){
 
 
 
-
-
-
-
-
+=======
+  
+>>>>>>> Stashed changes
