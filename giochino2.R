@@ -11,43 +11,43 @@ od <- get_business_onedrive() #only one time
 
 # REMEMBER: set correctly the working directory and the file name
 
-find_step_intersections <- function(df1, df2){
-  fd.1 <- stepfun(df1$Quantita.sum[-1], df1$Prezzo)
-  fd.2 <- stepfun(df2$Quantita.sum[-1], df2$Prezzo)
+find_step_intersections <- function(c.off, c.bid) {
+  intersections <- data.frame()
   
-  ## Curve subtraction
-  x.min <- max(min(df1$Quantita.sum), min(df2$Quantita.sum))
-  x.max <- min(max(df1$Quantita.sum), max(df2$Quantita.sum))
-  x_values <- seq(x.min, x.max, length.out = 10000)
+  fd.1 <- stepfun(x.synt.off, c(0,c.off))
+  fd.2 <- stepfun(x.synt.bid, c(400,c.bid))
+  
+  all_breaks <- sort(unique(c(x.synt.off, x.synt.bid)))
   
   # Evaluate fd.off at x_values
-  y_off <- fd.1(x_values)
+  y_off <- fd.1(all_breaks)
   
   # Evaluate fd.bid at x_values
-  y_bid <- fd.2(x_values)
+  y_bid <- fd.2(all_breaks)
   
-  # Compute the difference between the two curves
-  difference_curve <- abs(y_off - y_bid)
-  
-  x.minimizer <- x_values[which.min(difference_curve)]
-  
-  intersection <- c(df2$Quantita.sum[which(df2$Quantita.sum>=x.minimizer)][1], fd.1(x.minimizer))
-  return (intersection)
+  qta.inter <- all_breaks[which((y_bid-y_off)<0)][1]
+  if(qta.inter %in% x.synt.off){
+    prz.break <- fd.2(qta.inter)
+  }
+  if(qta.inter %in% x.synt.bid){
+    prz.break <- fd.1(qta.inter)
+  }
+  return(data.frame(x=qta.inter,y=prz.break))
 }
-
 
 repeat {
   
   print("Catching new data...")
   
   # One drive connection
-  #to be insert in a loop
   # newfile <- od$get_item("Insert your offer or bid!.xlsx")
   # newfile$download("responses.xlsx", overwrite = T)
   # data <- read_excel(path="C:/Users/User/Documents/GitHub/Applied/responses.xlsx")
   
   # local connection
   data <- read_excel("Insert your offer or bid!.xlsx")
+  random_item <- sample(1:nrow(data), 1)
+  data <- data[-random_item,]
   
   names(data)[8] <- "Type"
   names(data)[11] <- "OFF quant"
@@ -96,12 +96,14 @@ repeat {
   legend("topright", legend=c("Bid", "Offer"), col=c("blue", "red"), pch=15)
   
   #### intersection ----
-  mcp <- find_step_intersections(restricted.plot.off[[1]],restricted.plot.bid[[1]])
+  x.synt.off <- restricted.plot.off[[1]]$Quantita.sum
+  x.synt.bid <- restricted.plot.bid[[1]]$Quantita.sum
+  mcp <- find_step_intersections(restricted.plot.off[[1]]$Prezzo,restricted.plot.bid[[1]]$Prezzo)
   print(paste("Equilibrium point: x = ", mcp[1], ", y = ", mcp[2]))
   abline(h=mcp[2], col="grey", lty=2)
   abline(v=mcp[1], col="grey", lty=2)
   
-  Sys.sleep(20)
+  Sys.sleep(5)
   
 }
 
@@ -119,3 +121,7 @@ points(restricted.plot.off[[1]]$Quantita.sum, restricted.plot.off[[1]]$Prezzo, t
 dev.off()
 my_email$add_attachment("saving_plot.pdf")
 my_email$send()
+
+
+fd.1 <- stepfun(restricted.plot.off[[1]]$Quantita.sum[-1], restricted.plot.off[[1]]$Prezzo)
+plot(fd.1, verticals = TRUE, do.points = TRUE, col = "red", lwd = 2)
