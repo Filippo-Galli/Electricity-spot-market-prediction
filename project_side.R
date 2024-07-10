@@ -10,6 +10,8 @@ library(tidyr)
 library(stats)
 library(fdasrvf)
 library(forecast)
+library(lubridate)
+library(data.table)
 
 ######################### DataFrame Building #############################
 
@@ -208,18 +210,52 @@ prezzo.range <- c(0, 400)
 restricted.plot.off <- list()
 restricted.plot.bid <- list()
 for(i in 1:365){
-  
+
   restricted.plot.off[[i]] <- cumulative.df.off %>%
   filter( Data == date.sequence[i] &
-          Quantita.sum >= quantity.range[1] & Quantita.sum <= quantity.range[2] & 
+          Quantita.sum >= quantity.range[1] & Quantita.sum <= quantity.range[2] &
           Prezzo >= prezzo.range[1] & Prezzo <= prezzo.range[2])
-  
+
   restricted.plot.bid[[i]] <- cumulative.df.bid %>%
     filter( Data == date.sequence[i] &
-              Quantita.sum >= quantity.range[1] & Quantita.sum <= quantity.range[2] & 
+              Quantita.sum >= quantity.range[1] & Quantita.sum <= quantity.range[2] &
               Prezzo >= prezzo.range[1] & Prezzo <= prezzo.range[2])
 
+  print(paste("Percentage: ", i*100/365, " %"))
+
 }
+
+# # Improved Version of above loop 
+# filtered_off <- setDT(cumulative.df.off)[Data %in% date.sequence & 
+#                                            Quantita.sum >= quantity.range[1] & 
+#                                            Quantita.sum <= quantity.range[2] & 
+#                                            Prezzo >= prezzo.range[1] & 
+#                                            Prezzo <= prezzo.range[2]]
+# 
+# filtered_bid <- setDT(cumulative.df.bid)[Data %in% date.sequence & 
+#                                            Quantita.sum >= quantity.range[1] & 
+#                                            Quantita.sum <= quantity.range[2] & 
+#                                            Prezzo >= prezzo.range[1] & 
+#                                            Prezzo <= prezzo.range[2]]
+# 
+# # Initialize lists to store results
+# restricted.plot.off <- list()
+# restricted.plot.bid <- list()
+# 
+# # Iterate over dates
+# for(i in 1:length(date.sequence)){
+#   
+#   # Extract data for the current date
+#   off_data <- filtered_off[Data == date.sequence[i]]
+#   bid_data <- filtered_bid[Data == date.sequence[i]]
+#   
+#   # Add to lists
+#   restricted.plot.off[[i]] <- off_data
+#   restricted.plot.bid[[i]] <- bid_data
+#   
+#   # Print progress
+#   print(paste("Percentage: ", i*100/length(date.sequence), " %"))
+# }
 
 names(restricted.plot.off) <- date.sequence
 names(restricted.plot.bid) <- date.sequence
@@ -233,6 +269,49 @@ ggplot(restricted.plot.bid[[nday]], aes(x = Quantita.sum, y = Prezzo, color = as
        y = "Prezzo",
        color = "Hour") +
   theme_minimal()
+
+################### Functions ##########################
+
+find_intersection <- function(x.synt.off,x.synt.bid,c.off, c.bid) {
+  
+  # temporary dataset to order data and prices - OFF
+  temp.data <- data.frame(x = x.synt.off, y = c.off )
+  temp.data <- temp.data[order(temp.data$x),]
+  
+  x.synt.off <- temp.data$x
+  c.off <- temp.data$y
+  
+  # temporary dataset to order data and prices - BID
+  temp.data <- data.frame(x = x.synt.bid, y = c.bid )
+  temp.data <- temp.data[order(temp.data$x),]
+  
+  x.synt.bid <- temp.data$x
+  c.bid <- temp.data$y
+  
+  
+  
+  intersections <- data.frame()
+  
+  fd.1 <- stepfun(x.synt.off, c(0,c.off))
+  fd.2 <- stepfun(x.synt.bid, c(400,c.bid))
+  
+  all_breaks <- sort(unique(c(x.synt.off, x.synt.bid)))
+  
+  # Evaluate fd.off at x_values
+  y_off <- fd.1(all_breaks)
+  
+  # Evaluate fd.bid at x_values
+  y_bid <- fd.2(all_breaks)
+  
+  qta.inter <- all_breaks[which((y_bid-y_off)<0)][1]
+  if(qta.inter %in% x.synt.off){
+    prz.break <- fd.2(qta.inter)
+  }
+  if(qta.inter %in% x.synt.bid){
+    prz.break <- fd.1(qta.inter)
+  }
+  return(data.frame(x=qta.inter,y=prz.break))
+}
 
 ############################## Market Clearing Price #############################
 
@@ -383,6 +462,17 @@ for(nday in ndays){
   
 }
 
+####################################### Remove Useless things#######################
+rm(bid, count.ZonaMercato, cumulative.df.bid, cumulative.df.off, df_boxplot, df.bid, df.off)
+
+rm(zone.full, zone.no.cors, zone.no.sici.malt.cala, zone.nord, zone.sud, zone.category, zone)
+
+rm(matrix.smoothed.eval, zone.day.hour, this.df, sorted.df.bid, sorted.df.off)
+
+rm(missing.zone.day.hour, missing.hour, month_colors, mcp.df, mcq.df, delta.mcq)
+
+rm(medians, null.prices, off, off.bid, off.shift, plot)
+
 ####################################### fPCA #################################
 
 # init of matrix of functions 
@@ -511,7 +601,7 @@ points(x.synt.bid, forecast.reconstructed.curve.bid, xlab = "Quantita", ylab = "
 #points(x.synt.off, forecast.reconstructed.curve.off, xlab = "Quantita", ylab = "Prezzo", main = "Reconstructed forecasted curves", lwd=2, col = 'red', type='s')
 #delta_value
 
-intr <- find_intersections_prediction(forecast.reconstructed.curve.off,forecast.reconstructed.curve.bid)
+intr <- find_intersection(x.synt.off, x.synt.bid, forecast.reconstructed.curve.off,forecast.reconstructed.curve.bid)
 abline(v=intr$x,h=intr$y,lty=2,col='grey')
 intr
 
@@ -523,8 +613,10 @@ knots.bid <- unique(c(10000,seq(10000, 20000, length = 100), seq(20000, 30000, l
 matrix.smoothed.eval.off <- c()
 matrix.smoothed.eval.bid<- c()
 
-predict.day.seq <- as.Date(c('2023-01-11','2023-04-11','2023-07-11','2023-10-11')) # 2 giorni al mese scegli
-hour.to.predict <- #metti la tua ora
+predict.day.seq <- as.Date(c(
+                          '2023-01-09','2023-01-24', '2023-02-09','2023-02-24'
+                          )) # 2 giorni al mese scegli
+hour.to.predict <- 1 #metti la tua ora
 go.back.by <- 5 # LEO 7
 
 info.by.day <- list()
@@ -536,187 +628,147 @@ for(day.to.predict in predict.day.seq){
   n.end.day <- which(date.sequence==as.Date(day.to.predict))
   n.start.day <- n.end.day-go.back.by
   hour.seq <- 1:24
-
-for(nday in n.start.day:n.end.day){
-  print(nday)
-  if(nday==n.end.day){
-    hour.seq <- 1:(hour.to.predict-1)
-  }
   
-  for(hour in hour.seq) {
+  for(nday in n.start.day:n.end.day){
+    print(nday)
+    if(nday==n.end.day){
+      hour.seq <- 1:(hour.to.predict-1)
+    }
     
-  ## Offerta
-  this.df <- restricted.plot.off[[nday]][which(restricted.plot.off[[nday]]$Ora %in% hour),c(2,5,6)] %>% group_by(Ora)
+    for(hour in hour.seq) {
+      
+      ## Offerta
+      this.df <- restricted.plot.off[[nday]][which(restricted.plot.off[[nday]]$Ora %in% hour),c(2,5,6)] %>% group_by(Ora)
+      
+      # original data
+      abscissa <- this.df$Quantita.sum
+      ordinate <- this.df$Prezzo
+      
+      if(length(abscissa) > 0 & length(ordinate) > 0){
+        step.function <- stepfun(abscissa,c(ordinate[1],ordinate))
+        x.synt.off <- seq(quantity.range[1],quantity.range[2],by = step.length)
+        y.synt.off <- step.function(x.synt.off)
+        
+        order <- 1
+        basis <- create.bspline.basis(rangeval=quantity.range, nbasis=nbasis[[nday]][[hour]], norder=order)
+        smoothed <- smooth.basis(argvals=x.synt.off, y=y.synt.off, fdParobj=basis)
+        matrix.smoothed.eval.off <- cbind(matrix.smoothed.eval.off,eval.fd(x.synt.off, smoothed$fd))
+      }
+      
+      ## Domanda
+      this.df <- restricted.plot.bid[[nday]][which(restricted.plot.bid[[nday]]$Ora %in% hour),c(2,5,6)] %>% group_by(Ora)
+      # original data
+      abscissa <- this.df$Quantita.sum
+      ordinate <- this.df$Prezzo
+      
+      if(length(abscissa) > 0 & length(ordinate) > 0){
+        step.function <- stepfun(abscissa, c(ordinate[1], ordinate))
+        x.synt.bid <- knots.bid
+        y.synt.bid <- step.function(x.synt.bid)
+        
+        order <- 1
+        basis <- create.bspline.basis(breaks = knots.bid, norder=2)
+        smoothed <- smooth.basis(argvals=x.synt.bid, y=y.synt.bid, fdParobj=basis)
+        matrix.smoothed.eval.bid <- cbind(matrix.smoothed.eval.bid, eval.fd(x.synt.bid, smoothed$fd))
+      }
+    }
+  }
   
-  # original data
-  abscissa <- this.df$Quantita.sum
-  ordinate <- this.df$Prezzo
+  # Create a basis for the functional data object
+  basis.off <- create.bspline.basis(rangeval = quantity.range, nbasis = n, norder = 2)
+  basis.bid <- create.bspline.basis(breaks = knots.bid, norder=2)
   
-  if(length(abscissa) > 0 & length(ordinate) > 0){
-    step.function <- stepfun(abscissa,c(ordinate[1],ordinate))
-    x.synt.off <- seq(quantity.range[1],quantity.range[2],by = step.length)
-    y.synt.off <- step.function(x.synt.off)
+  # Create a functional data object
+  fd.off <- Data2fd(argvals = x.synt.off, y = matrix.smoothed.eval.off, basis.off)
+  fd.bid <- Data2fd(argvals = x.synt.bid, y = matrix.smoothed.eval.bid, basis.bid)
+  
+  # Perform functional principal component analysis
+  k <- 10
+  fpca.off <- pca.fd(fd.off, nharm=k, centerfns = FALSE)
+  fpca.bid <- pca.fd(fd.bid, nharm=k, centerfns = FALSE)
+  
+  # Plot the functional principal components
+  plot.fd(fpca.off$harmonics, xlab = "Quantita", ylab = "Prezzo OFF", main = "Functional Principal Components")
+  legend('topright', legend = paste("PC", 1:k), col = 1:k, lty = 1)
+  plot.fd(fpca.bid$harmonics, xlab = "Quantita", ylab = "Prezzo OFF", main = "Functional Principal Components")
+  legend('topright', legend = paste("PC", 1:k), col = 1:k, lty = 1)
+  
+  
+  # Save of scores matrix
+  scores.matrix.off <- fpca.off$scores
+  scores.matrix.bid <- fpca.bid$scores
+  
+  
+  # Perform forecasting and save models
+  pc.model.prediction.off <- list()
+  pc.model.prediction.bid <- list()
+  
+  for (i in 1:ncol(scores.matrix.off)){
+    scores.off <- scores.matrix.off[,i]
+    scores.bid <- scores.matrix.bid[,i]
+    forecast.off <- forecast(auto.arima(scores.off))
+    forecast.bid <- forecast(auto.arima(scores.bid))
+    pc.model.prediction.off[[paste("PC", i)]] <- forecast.off
+    pc.model.prediction.bid[[paste("PC", i)]] <- forecast.bid
     
-    order <- 1
-    basis <- create.bspline.basis(rangeval=quantity.range, nbasis=nbasis[[nday]][[hour]], norder=order)
-    smoothed <- smooth.basis(argvals=x.synt.off, y=y.synt.off, fdParobj=basis)
-    matrix.smoothed.eval.off <- cbind(matrix.smoothed.eval.off,eval.fd(x.synt.off, smoothed$fd))
   }
   
-  ## Domanda
-  this.df <- restricted.plot.bid[[nday]][which(restricted.plot.bid[[nday]]$Ora %in% hour),c(2,5,6)] %>% group_by(Ora)
-  # original data
-  abscissa <- this.df$Quantita.sum
-  ordinate <- this.df$Prezzo
-  
-  if(length(abscissa) > 0 & length(ordinate) > 0){
-    step.function <- stepfun(abscissa, c(ordinate[1], ordinate))
-    x.synt.bid <- knots.bid
-    y.synt.bid <- step.function(x.synt.bid)
-    
-    order <- 1
-    basis <- create.bspline.basis(breaks = knots.bid, norder=2)
-    smoothed <- smooth.basis(argvals=x.synt.bid, y=y.synt.bid, fdParobj=basis)
-    matrix.smoothed.eval.bid <- cbind(matrix.smoothed.eval.bid, eval.fd(x.synt.bid, smoothed$fd))
+  # Extract the mean forecasted values
+  mean.prediction.forecast.off <- list()
+  for(i in 1:k){
+    mean.prediction.forecast.off[[i]] <- predict(pc.model.prediction.off[[paste("PC", i)]], h = 1)$mean
   }
+  mean.prediction.forecast.bid <- list()
+  for(i in 1:k){
+    mean.prediction.forecast.bid[[i]] <- predict(pc.model.prediction.bid[[paste("PC", i)]], h = 1)$mean
   }
-}
-
-# Create a basis for the functional data object
-basis.off <- create.bspline.basis(rangeval = quantity.range, nbasis = n, norder = 2)
-basis.bid <- create.bspline.basis(breaks = knots.bid, norder=2)
-
-# Create a functional data object
-fd.off <- Data2fd(argvals = x.synt.off, y = matrix.smoothed.eval.off, basis.off)
-fd.bid <- Data2fd(argvals = x.synt.bid, y = matrix.smoothed.eval.bid, basis.bid)
-
-# Perform functional principal component analysis
-k <- 10
-fpca.off <- pca.fd(fd.off, nharm=k, centerfns = FALSE)
-fpca.bid <- pca.fd(fd.bid, nharm=k, centerfns = FALSE)
-
-# Plot the functional principal components
-plot.fd(fpca.off$harmonics, xlab = "Quantita", ylab = "Prezzo OFF", main = "Functional Principal Components")
-legend('topright', legend = paste("PC", 1:k), col = 1:k, lty = 1)
-plot.fd(fpca.bid$harmonics, xlab = "Quantita", ylab = "Prezzo OFF", main = "Functional Principal Components")
-legend('topright', legend = paste("PC", 1:k), col = 1:k, lty = 1)
-
-
-# Save of scores matrix
-scores.matrix.off <- fpca.off$scores
-scores.matrix.bid <- fpca.bid$scores
-
-
-# Perform forecasting and save models
-pc.model.prediction.off <- list()
-pc.model.prediction.bid <- list()
-
-for (i in 1:ncol(scores.matrix.off)){
-  scores.off <- scores.matrix.off[,i]
-  scores.bid <- scores.matrix.bid[,i]
-  forecast.off <- forecast(auto.arima(scores.off))
-  forecast.bid <- forecast(auto.arima(scores.bid))
-  pc.model.prediction.off[[paste("PC", i)]] <- forecast.off
-  pc.model.prediction.bid[[paste("PC", i)]] <- forecast.bid
   
-}
-
-# Extract the mean forecasted values
-mean.prediction.forecast.off <- list()
-for(i in 1:k){
-  mean.prediction.forecast.off[[i]] <- predict(pc.model.prediction.off[[paste("PC", i)]], h = 1)$mean
-}
-mean.prediction.forecast.bid <- list()
-for(i in 1:k){
-  mean.prediction.forecast.bid[[i]] <- predict(pc.model.prediction.bid[[paste("PC", i)]], h = 1)$mean
-}
-
-
-# Reconstruct the forecasted curves
-mean.prediction.forecast.value.off <- NULL
-for(i in 1:k ){
-  mean.prediction.forecast.value.off <- cbind(mean.prediction.forecast.value.off, mean.prediction.forecast.off[[i]][1])
-}
-forecast.reconstructed.curve.off <- fpca.off$harmonics$coefs %*% t(mean.prediction.forecast.value.off)
-
-mean.prediction.forecast.value.bid <- NULL
-for(i in 1:k ){
-  mean.prediction.forecast.value.bid <- cbind(mean.prediction.forecast.value.bid, mean.prediction.forecast.bid[[i]][1])
-}
-forecast.reconstructed.curve.bid <- fpca.bid$harmonics$coefs %*% t(mean.prediction.forecast.value.bid)
-
-plot(NA, NA, xlim = quantity.range, ylim = prezzo.range, xlab = "Quantita", ylab = "Prezzo", main = "Predicted Curve")
-# Reconstruct the forecasted curves applying our gang variable 
-points(x.synt.off, forecast.reconstructed.curve.off, xlab = "Quantita", ylab = "Prezzo", main = "Reconstructed forecasted curves", lwd=2, col = 'green', type='s')
-# Reconstruct the forecasted curves applying our gang variable 
-points(x.synt.bid, forecast.reconstructed.curve.bid, xlab = "Quantita", ylab = "Prezzo", main = "Reconstructed forecasted curves", lwd=2, col = 'red',type='s')
-
-
-intr <- find_intersection(x.synt.off,x.synt.bid,forecast.reconstructed.curve.off,forecast.reconstructed.curve.bid)
-
-# Real intersection
-nday <- which(date.sequence==day.to.predict)
-hour <- hour.to.predict
-
-off <- restricted.plot.off[[nday]][which(restricted.plot.off[[nday]]$Ora %in% hour),c(2,5,6)]
-bid <- restricted.plot.bid[[nday]][which(restricted.plot.bid[[nday]]$Ora %in% hour),c(2,5,6)]
-
-real.intr <- find_intersection(off$Quantita.sum,bid$Quantita.sum,off$Prezzo,bid$Prezzo)
-info <- rbind(info, c(qta_real = real.intr$x,
-                      prz_real = real.intr$y,
-                      qta_pred = intr$x,
-                      prz_pred = intr$y,
-                      diff_qta = intr$x-real.intr$x,
-                      diff_prz = intr$y-real.intr$y,
-                      diff_qta_percentage = abs(intr$x-real.intr$x)/real.intr$x,
-                      diff_prz_percentage = abs(intr$y-real.intr$y)/real.intr$y))
-
+  
+  # Reconstruct the forecasted curves
+  mean.prediction.forecast.value.off <- NULL
+  for(i in 1:k ){
+    mean.prediction.forecast.value.off <- cbind(mean.prediction.forecast.value.off, mean.prediction.forecast.off[[i]][1])
+  }
+  forecast.reconstructed.curve.off <- fpca.off$harmonics$coefs %*% t(mean.prediction.forecast.value.off)
+  
+  mean.prediction.forecast.value.bid <- NULL
+  for(i in 1:k ){
+    mean.prediction.forecast.value.bid <- cbind(mean.prediction.forecast.value.bid, mean.prediction.forecast.bid[[i]][1])
+  }
+  forecast.reconstructed.curve.bid <- fpca.bid$harmonics$coefs %*% t(mean.prediction.forecast.value.bid)
+  
+  plot(NA, NA, xlim = quantity.range, ylim = prezzo.range, xlab = "Quantita", ylab = "Prezzo", main = "Predicted Curve")
+  # Reconstruct the forecasted curves applying our gang variable 
+  points(x.synt.off, forecast.reconstructed.curve.off, xlab = "Quantita", ylab = "Prezzo", main = "Reconstructed forecasted curves", lwd=2, col = 'green', type='s')
+  # Reconstruct the forecasted curves applying our gang variable 
+  points(x.synt.bid, forecast.reconstructed.curve.bid, xlab = "Quantita", ylab = "Prezzo", main = "Reconstructed forecasted curves", lwd=2, col = 'red',type='s')
+  
+  
+  intr <- find_intersection(x.synt.off,x.synt.bid,forecast.reconstructed.curve.off,forecast.reconstructed.curve.bid)
+  
+  # Real intersection
+  nday <- which(date.sequence==day.to.predict)
+  hour <- hour.to.predict
+  
+  off <- restricted.plot.off[[nday]][which(restricted.plot.off[[nday]]$Ora %in% hour),c(2,5,6)]
+  bid <- restricted.plot.bid[[nday]][which(restricted.plot.bid[[nday]]$Ora %in% hour),c(2,5,6)]
+  
+  real.intr <- find_intersection(off$Quantita.sum,bid$Quantita.sum,off$Prezzo,bid$Prezzo)
+  info <- rbind(info, c(qta_real = real.intr$x,
+                        prz_real = real.intr$y,
+                        qta_pred = intr$x,
+                        prz_pred = intr$y,
+                        diff_qta = intr$x-real.intr$x,
+                        diff_prz = intr$y-real.intr$y,
+                        diff_qta_percentage = abs(intr$x-real.intr$x)/real.intr$x,
+                        diff_prz_percentage = abs(intr$y-real.intr$y)/real.intr$y))
+  
   info.by.day[[as.character(as.Date(day.to.predict))]] <- info
+  
+  print(paste("Day:",as.Date(day.to.predict)," - Hour:",hour.to.predict, " done!"))
 }
 
-[1] 8
-[1] 9
-[1] 10
-[1] 11
-[1] 98
-[1] 99
-[1] 100
-[1] 101
-[1] 189
-[1] 190
-[1] 191
-[1] 192
-[1] 281
-[1] 282
-[1] 283
-[1] 284
-
-
-################### Functions ##########################
-
-find_intersection <- function(x.synt.off,x.synt.bid,c.off, c.bid) {
-  intersections <- data.frame()
-  
-  fd.1 <- stepfun(x.synt.off, c(0,c.off))
-  fd.2 <- stepfun(x.synt.bid, c(400,c.bid))
-  
-  all_breaks <- sort(unique(c(x.synt.off, x.synt.bid)))
-  
-  # Evaluate fd.off at x_values
-  y_off <- fd.1(all_breaks)
-  
-  # Evaluate fd.bid at x_values
-  y_bid <- fd.2(all_breaks)
-  
-  qta.inter <- all_breaks[which((y_bid-y_off)<0)][1]
-  if(qta.inter %in% x.synt.off){
-    prz.break <- fd.2(qta.inter)
-  }
-  if(qta.inter %in% x.synt.bid){
-    prz.break <- fd.1(qta.inter)
-  }
-  return(data.frame(x=qta.inter,y=prz.break))
-}
+info.by.day
 
 ##################################### Alignment ############################################
 
