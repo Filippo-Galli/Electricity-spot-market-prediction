@@ -613,9 +613,16 @@ knots.bid <- unique(c(10000,seq(10000, 20000, length = 100), seq(20000, 30000, l
 matrix.smoothed.eval.off <- c()
 matrix.smoothed.eval.bid<- c()
 
+# predict.day.seq <- as.Date(c(
+#                           '2023-01-09','2023-01-24', '2023-02-09','2023-02-24', '2023-03-09','2023-03-24', '2023-04-09','2023-04-24',
+#                           '2023-05-09','2023-05-24', '2023-06-09','2023-06-24', '2023-07-09','2023-07-24', '2023-08-09','2023-08-24',
+#                           '2023-09-09','2023-09-24', '2023-10-09','2023-10-24', '2023-11-09','2023-11-24', '2023-12-09','2023-12-24'
+#                           )) # 2 giorni al mese scegli
+
 predict.day.seq <- as.Date(c(
-                          '2023-01-09','2023-01-24', '2023-02-09','2023-02-24'
-                          )) # 2 giorni al mese scegli
+  '2023-10-24', '2023-11-09','2023-11-24', '2023-12-09','2023-12-24'
+)) # 2 giorni al mese scegli
+
 hour.to.predict <- 1 #metti la tua ora
 go.back.by <- 5 # LEO 7
 
@@ -687,12 +694,12 @@ for(day.to.predict in predict.day.seq){
   fpca.off <- pca.fd(fd.off, nharm=k, centerfns = FALSE)
   fpca.bid <- pca.fd(fd.bid, nharm=k, centerfns = FALSE)
   
-  # Plot the functional principal components
-  plot.fd(fpca.off$harmonics, xlab = "Quantita", ylab = "Prezzo OFF", main = "Functional Principal Components")
-  legend('topright', legend = paste("PC", 1:k), col = 1:k, lty = 1)
-  plot.fd(fpca.bid$harmonics, xlab = "Quantita", ylab = "Prezzo OFF", main = "Functional Principal Components")
-  legend('topright', legend = paste("PC", 1:k), col = 1:k, lty = 1)
-  
+  # # Plot the functional principal components
+  # plot.fd(fpca.off$harmonics, xlab = "Quantita", ylab = "Prezzo OFF", main = "Functional Principal Components")
+  # legend('topright', legend = paste("PC", 1:k), col = 1:k, lty = 1)
+  # plot.fd(fpca.bid$harmonics, xlab = "Quantita", ylab = "Prezzo OFF", main = "Functional Principal Components")
+  # legend('topright', legend = paste("PC", 1:k), col = 1:k, lty = 1)
+  # 
   
   # Save of scores matrix
   scores.matrix.off <- fpca.off$scores
@@ -737,13 +744,13 @@ for(day.to.predict in predict.day.seq){
   }
   forecast.reconstructed.curve.bid <- fpca.bid$harmonics$coefs %*% t(mean.prediction.forecast.value.bid)
   
-  plot(NA, NA, xlim = quantity.range, ylim = prezzo.range, xlab = "Quantita", ylab = "Prezzo", main = "Predicted Curve")
-  # Reconstruct the forecasted curves applying our gang variable 
-  points(x.synt.off, forecast.reconstructed.curve.off, xlab = "Quantita", ylab = "Prezzo", main = "Reconstructed forecasted curves", lwd=2, col = 'green', type='s')
-  # Reconstruct the forecasted curves applying our gang variable 
-  points(x.synt.bid, forecast.reconstructed.curve.bid, xlab = "Quantita", ylab = "Prezzo", main = "Reconstructed forecasted curves", lwd=2, col = 'red',type='s')
-  
-  
+  # plot(NA, NA, xlim = quantity.range, ylim = prezzo.range, xlab = "Quantita", ylab = "Prezzo", main = "Predicted Curve")
+  # # Reconstruct the forecasted curves applying our gang variable 
+  # points(x.synt.off, forecast.reconstructed.curve.off, xlab = "Quantita", ylab = "Prezzo", main = "Reconstructed forecasted curves", lwd=2, col = 'green', type='s')
+  # # Reconstruct the forecasted curves applying our gang variable 
+  # points(x.synt.bid, forecast.reconstructed.curve.bid, xlab = "Quantita", ylab = "Prezzo", main = "Reconstructed forecasted curves", lwd=2, col = 'red',type='s')
+  # 
+  # 
   intr <- find_intersection(x.synt.off,x.synt.bid,forecast.reconstructed.curve.off,forecast.reconstructed.curve.bid)
   
   # Real intersection
@@ -753,7 +760,12 @@ for(day.to.predict in predict.day.seq){
   off <- restricted.plot.off[[nday]][which(restricted.plot.off[[nday]]$Ora %in% hour),c(2,5,6)]
   bid <- restricted.plot.bid[[nday]][which(restricted.plot.bid[[nday]]$Ora %in% hour),c(2,5,6)]
   
-  real.intr <- find_intersection(off$Quantita.sum,bid$Quantita.sum,off$Prezzo,bid$Prezzo)
+  if(length(off$Quantita.sum) > 0 & length(bid$Quantita.sum) > 0){
+    real.intr <- find_intersection(off$Quantita.sum,bid$Quantita.sum,off$Prezzo,bid$Prezzo)    
+  } else{
+    real.intr <- data.frame(x=1,y=1)
+  }
+  
   info <- rbind(info, c(qta_real = real.intr$x,
                         prz_real = real.intr$y,
                         qta_pred = intr$x,
@@ -765,7 +777,7 @@ for(day.to.predict in predict.day.seq){
   
   info.by.day[[as.character(as.Date(day.to.predict))]] <- info
   
-  print(paste("Day:",as.Date(day.to.predict)," - Hour:",hour.to.predict, " done!"))
+  print(paste("Day:",as.Date(day.to.predict)," done! - Percentage of work: ",(which(predict.day.seq==day.to.predict)/length(predict.day.seq)*100)," %"))
 }
 
 info.by.day
