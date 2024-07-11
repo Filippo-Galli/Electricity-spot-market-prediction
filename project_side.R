@@ -5,7 +5,7 @@ rm(list = ls())
 library(dplyr)
 library(ggplot2)
 library(tidyverse)
-library (fda)
+library(fda)
 library(tidyr)
 library(stats)
 library(fdasrvf)
@@ -619,13 +619,32 @@ matrix.smoothed.eval.bid<- c()
 #                           '2023-09-09','2023-09-24', '2023-10-09','2023-10-24', '2023-11-09','2023-11-24', '2023-12-09','2023-12-24'
 #                           )) # 2 giorni al mese scegli
 
-predict.day.seq <- as.Date(c(
-  '2023-10-24', '2023-11-09','2023-11-24', '2023-12-09','2023-12-24'
-)) # 2 giorni al mese scegli
-
-hour.to.predict <- 1 #metti la tua ora
-go.back.by <- 5 # LEO 7
-
+predict.day.seq <- as.Date(c('2023-01-11',
+                             '2023-01-27',
+                             '2023-02-11',
+                             '2023-02-27',
+                             '2023-03-11',
+                             '2023-03-27',
+                             '2023-04-11',
+                             '2023-04-27',
+                             '2023-05-11',
+                             '2023-05-27',
+                             '2023-06-11',
+                             '2023-06-27',
+                             '2023-07-11',
+                             '2023-07-27',
+                             '2023-08-11',
+                             '2023-08-27',
+                             '2023-09-11',
+                             '2023-09-27',
+                             '2023-10-11',
+                             '2023-10-27',
+                             '2023-11-11',
+                             '2023-11-27',
+                             '2023-12-11',
+                             '2023-12-27')) # 2 giorni al mese scegli
+hour.to.predict <- 20
+go.back.by <- 5
 info.by.day <- list()
 
 for(day.to.predict in predict.day.seq){
@@ -781,6 +800,90 @@ for(day.to.predict in predict.day.seq){
 }
 
 info.by.day
+
+mean.percentage.qta <- 0
+mean.percentage.prz <- 0
+it <- 0
+for(day in predict.day.seq){
+  if(info.by.day[[as.character(as.Date(day))]][1] != 1 & info.by.day[[as.character(as.Date(day))]][2] != 1){
+    text <- paste("diff qta %: ", info.by.day[[as.character(as.Date(day))]][7]*100)
+    text <- paste(text, " diff prz %: ", info.by.day[[as.character(as.Date(day))]][8]*100)
+    print(text)
+    
+    mean.percentage.qta <- mean.percentage.qta + info.by.day[[as.character(as.Date(day))]][7]*100
+    mean.percentage.prz <- mean.percentage.prz + info.by.day[[as.character(as.Date(day))]][8]*100
+    
+    it <- it+1
+  }
+}
+
+print(paste("Mean diff qta %: ", mean.percentage.qta/it))
+print(paste("Mean diff prz %: ", mean.percentage.prz/it))
+
+save(info.by.day, file = "Klaus_test.RData")
+
+##################################### Csv test ############################################
+
+temp <- data.frame()
+
+insert_data_csv <- function(info.by.day, ora){
+  
+  for (i in seq_along(info.by.day)) {
+    # extract info
+    day <- as.Date(names(info.by.day)[i])
+    info <- info.by.day[[i]]
+    
+    # create a data frame
+    temp <- rbind(temp, data.frame(day = day, info, ora = ora))
+  }
+  
+  return(temp)
+}
+
+load("Klaus_test.RData")
+temp <- insert_data_csv(info.by.day, 20)
+load("Ale_test.RData")
+temp <- insert_data_csv(info.by.day, 13)
+load("Pippo_test.RData")
+temp <- insert_data_csv(info.by.day, 1)
+load("Rob_test.RData")
+temp <- insert_data_csv(info.by.day, 8)
+
+temp <- temp[-which(temp$qta_real==1), ]
+# Apply create numeric column 
+temp <- temp %>% mutate_all(as.numeric)
+
+temp <- temp [- which(temp$diff_prz_percentage > 10), ]
+colMeans(temp)
+var(temp)
+
+temp$ora <- as.factor(temp$ora)
+
+# plot boxplot for hour
+par(mfrow=c(2,2))
+for(i in c(1, 8, 13, 20)){
+  boxplot(temp[temp$ora==i, 9], main = paste("Hour:",i), xlab = "Percentage", ylab = "Diff Prezzo")
+}
+
+sd.per.hour <- temp %>% group_by(ora) %>% summarise(sd = sd(diff_prz))
+sd.per.hour
+
+mean.diff.prz <- temp %>% group_by(ora) %>% summarise(mean = mean(diff_prz))
+mean.diff.prz
+
+mean.diff.prz.percentage <- temp %>% group_by(ora) %>% summarise(mean = mean(diff_prz_percentage)*100)
+mean.diff.prz.percentage
+
+table <- cbind(mean.diff.prz, mean.diff.prz.percentage[2], sd.per.hour[2])
+names(table) <- c("Ora", "Mean difference", "%", "SD")
+table
+
+rbind(temp[which(temp$day == 19525), 2:3], temp[which(temp$day == 19525), 4:5])
+
+
+write.csv(temp, "test_result.csv")
+
+
 
 ##################################### Alignment ############################################
 
