@@ -2,7 +2,7 @@ rm(list = ls())
 
 # Choose if you want all files in data
 all_files <- FALSE
-# Set Date range to convert
+# Set date range of xml to convert
 initial_date <- as.Date("2023-01-01")
 final_date <- as.Date("2023-12-31")
 
@@ -100,12 +100,6 @@ table(df$ZonaMercato)
 #split by Tipo
 df_multizone_unified_OFF <- subset(df_multizone[df_multizone$Tipo == 'OFF',], select = -c(Tipo, ZonaMercato, Mercato, element))
 df_multizone_unified_BID <- subset(df_multizone[df_multizone$Tipo == 'BID',], select = -c(Tipo, ZonaMercato, Mercato, element))
-
-# Clean all the demand rows 
-  #table(df$Tipo)
-  #correct_tipo <- c('OFF')
-  #df <- df[!df$Tipo != correct_tipo, ]
-  #table(df$Tipo)
 
 dftot <- df
 
